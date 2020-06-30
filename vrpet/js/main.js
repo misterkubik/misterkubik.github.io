@@ -62,6 +62,8 @@ var GameState = {
 
     });
 
+    this.pet.animations.add('fun', [0, 1, 3, 2, 1, 0], 12, false);
+
     //nothing selected
     this.selectedItem = null;
     this.uiBlocked = false;
@@ -130,6 +132,7 @@ var GameState = {
       var petMove = this.game.add.tween(this.pet);
       petMove.to({x: x, y: y}, 500);
       petMove.onComplete.add(function(){
+        this.pet.play('fun');
         newItem.destroy();
         this.uiBlocked = false;
         // this.clearSelection(true);
@@ -141,6 +144,7 @@ var GameState = {
             console.log(stat +': ' + this.pet.customParams[stat]);
           }
         }
+
 
       }, this);
       petMove.start();
