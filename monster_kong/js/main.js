@@ -36,7 +36,8 @@ var GameState = {
     this.load.spritesheet('pig', 'assets/images/pig.png', 78, 78, 70, 0, 2);    
     this.load.spritesheet('naruto', 'assets/images/naruto.png', 78, 78, 200, 0, 2);    
     this.load.spritesheet('fire', 'assets/images/fire_spritesheet.png', 32, 55, 4, 0, 0);    
-    this.load.spritesheet('clay', 'assets/images/clay_bird.png', 82, 82, 2, 0, 0);      
+    this.load.spritesheet('clay', 'assets/images/clay_bird.png', 82, 82, 3, 0, 0);   
+    this.load.spritesheet('boom', 'assets/images/explosion.png', 82, 82, 8, 0, 0);      
 
     this.load.text('level', 'assets/data/level.json');
   },
@@ -56,13 +57,6 @@ var GameState = {
     //parse file
     this.levelData = JSON.parse(this.game.cache.getText('level'));
 
-    // console.log(this.levelData)
-
-    this.goal = this.add.sprite(this.levelData.goal.x, this.levelData.goal.y, 'susano');
-    this.goal.anchor.setTo(0.5, 1);
-    this.goal.scale.setTo(.5);
-    this.goal.animations.add('idle', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12, true);
-    this.goal.play('idle');
 
     this.platforms = this.add.group();
     this.platforms.enableBody = true;
@@ -80,6 +74,19 @@ var GameState = {
     // this.platform.body.allowGravity = false;
     // this.platform.body.immovable = true;
 
+    //create susano goal
+    this.goal = this.add.sprite(this.levelData.goal.x, this.levelData.goal.y, 'susano');
+    this.goal.anchor.setTo(0.5, 1);
+    this.goal.scale.setTo(.5);
+    this.goal.animations.add('idle', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12, true);
+    this.goal.animations.add('die', [35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15], 12, false);
+    this.goal.play('idle');
+    this.goal.customParams = {defeated: false};
+    this.game.physics.arcade.enable(this.goal);
+    this.goal.body.allowGravity = false;
+    this.goal.body.immovable = true;   
+    this.goal.body.setSize(30,60,0,2);
+
 
     //fires
     this.fires = this.add.group();
@@ -89,6 +96,7 @@ var GameState = {
     this.levelData.fireData.forEach(item => {
       fire = this.fires.create(item.x, item.y, 'fire', 1);
       fire.animations.add('flame', [0,1,2,3], 8, true, true);
+      fire.body.setSize(23,23,0, 4);
       fire.anchor.setTo(0.5, 0.9);
       fire.scale.setTo(0.7);
       fire.play('flame');
@@ -127,6 +135,7 @@ var GameState = {
     pigChar.animations.add('jumpUp', [34], 12, false);
     pigChar.animations.add('fall', [33], 12, false);
     pigChar.animations.add('burn', [18, 19], 8, true);
+    pigChar.animations.add('win', [20, 21, 22, 23], 8, true);
     pigChar.bBox = {w: 29, h: 19, x: 37, y: 78};
 
     //naruto animations
@@ -145,8 +154,9 @@ var GameState = {
     this.player.anchor.setTo(0.5, 1);
     this.player.body.collideWorldBounds = true;
     // this.player.play('walking');
-    this.player.customParams = {};
+    this.player.customParams = {life: 3, invinsible: false};
 
+    this.explosions = this.add.group();
 
     // this.player.body.sourceWidth = 30;
     // this.player.body.sourceHeight = 22;
@@ -162,9 +172,8 @@ var GameState = {
     this.barrels = this.add.group();
     this.barrels.enableBody = true;
 
+    this.createBarrel();
     this.barrelCreator = this.game.time.events.loop(Phaser.Timer.SECOND * this.levelData.barrelFrequency, this.createBarrel, this);
-
-
   },
 
   createBarrel() {
@@ -182,13 +191,30 @@ var GameState = {
       barrel.play('flow');
     }
 
+    var explosion = this.explosions.getFirstExists(false);
+    if(!explosion){
+      explosion = this.explosions.create(0, 0, 'boom', 7);
+      explosion.anchor.setTo(0.5);
+      explosion.scale.setTo(2);
+      explosion.animations.add('boom', [0,1,2,3], 12, false);
+      explosion.animations.getAnimation('boom').killOnComplete = true;
+    }
+
+    barrel.explode = function() {
+      explosion.reset(this.world.x, this.world.y);
+      this.body.moving = false;
+      explosion.play('boom');
+      this.kill();
+    };
+
     barrel.body.setSize(40, 11, 0, 0 );
 
     barrel.body.collideWorldBounds = true;
     barrel.body.bounce.x = 1;
-
-    barrel.reset(this.levelData.goal.x, this.levelData.goal.y - 10);
-    barrel.body.velocity.x = this.levelData.barrelSpeed;
+    if(!this.goal.customParams.defeated) {
+      barrel.reset(this.levelData.goal.x, this.levelData.goal.y - 10);
+      barrel.body.velocity.x = this.levelData.barrelSpeed;
+    }
 
   },
 
@@ -247,45 +273,77 @@ var GameState = {
       this.player.customParams.isMovingRight = false;
     }, this);
 
-
+    this.health = this.add.group();
   },
 
   burned() {
     this.player.customParams.isBurning = true;
-    this.player.body.velocity.x = this.player.body.wasTouching.left ? 200 : -200;
-    this.player.body.velocity.y = -200;
+    this.player.body.velocity.x = this.player.body.wasTouching.left ? 100 : -100;
+    this.player.body.velocity.y = -300;
     this.player.play('burn');
+    this.injure();
     this.game.time.events.add(500, () => {
       this.player.customParams.isBurning = false;
       this.player.body.velocity.x = 0;
       this.player.body.velocity.y = 0;
+      this.player.customParams.invinsible = false;
     });
     
   },
 
+  injure() {
+    if(!this.player.customParams.invinsible){
+      this.player.customParams.life--;
+      this.player.customParams.invinsible = true;
+    }
+  
+  },
+
   explodeBarrel(ground, barrel){
     barrel.game.time.events.add(300, () => {
-      barrel.kill();
+      barrel.explode();
     });
   },
 
   update() {
-
-    this.barrels.forEach(item => { 
-      item.scale.x = Math.abs(item.scale.x) * (item.body.velocity.x > 0 ? 1 : -1); 
-    }, this );
-
+    if(this.player.customParams.life <= 0){
+      this.game.time.events.add(350, () => {
+        this.gameOver('GAME OVER!');
+      });
+    }
     this.player.body.setSize(this.player.bBox.w, this.player.bBox.h, this.player.bBox.x * this.player.scale.x - (this.player.width * this.player.anchor.x), this.player.bBox.y - (this.player.height * this.player.anchor.y));
 
     this.game.physics.arcade.collide(this.player, this.ground, this.landed);
     this.game.physics.arcade.collide(this.player, this.platforms, this.landed);
     this.game.physics.arcade.collide(this.barrels, this.platforms);
 
+    // this.game.physics.arcade.overlap(this.player, this.goal, () => this.gameOver('YOU WIN!') );
+
     this.game.physics.arcade.collide(this.barrels, this.ground, this.explodeBarrel );
     // this.game.physics.arcade.overlap(this.player, this.fires, this.burned.bind(this) );
 
-    this.game.physics.arcade.overlap(this.player, this.fires, () => this.burned() );
-    this.game.physics.arcade.overlap(this.player, this.barrels, () => this.burned() );
+    if(!this.player.customParams.invinsible){
+      this.game.physics.arcade.overlap(this.player, this.fires, () => this.burned() );
+      this.game.physics.arcade.overlap(this.player, this.barrels, (char, barrel) => {
+        this.burned();
+        barrel.explode();
+       });
+
+      this.game.physics.arcade.overlap(this.player, this.goal, (char, goal) => {
+        goal.play('die');
+        char.play('win');
+        this.game.time.events.add(100, () => {
+          char.kill();
+        });
+        char.customParams.invinsible = true;
+        goal.customParams.defeated = true;
+        console.log(this.goal.animations.getAnimation('die'));  
+        this.goal.animations.getAnimation('die').killOnComplete = true;
+        this.game.time.events.add(2000, () => {
+          this.gameOver('YOU WIN!');
+        });
+      });
+    }
     
     if(!this.player.customParams.isBurning) {
       this.player.body.velocity.x = 0;
@@ -349,11 +407,28 @@ var GameState = {
       this.actionButton.scale.setTo(1);
     }
 
+    this.barrels.forEach(item => { 
+      item.scale.x = Math.abs(item.scale.x) * (item.body.velocity.x > 0 ? 1 : -1); 
+      if(!item.body.touching.down && item.body.velocity.y != 0){
+        item.animations.stop();
+        item.frame = 2;
+        item.rotation = .5 * (item.body.velocity.x > 0 ? 1 : -1);
+      }else{
+        item.play('flow');
+        item.rotation = 0;
+      }
+    }, this );
+
 
   },
   landed(player, ground){
     // console.log('Landed on ' +  ground.key);
 
+  },
+
+  gameOver(mssg) {
+    alert(mssg);
+    game.state.start('GameState');
   }
   
   
