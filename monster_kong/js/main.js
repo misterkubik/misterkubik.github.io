@@ -16,7 +16,7 @@ var GameState = {
 
     this.game.world.setBounds(0, 0, 360, 700);
 
-    this.PLAYER_SPEED = 120;
+    this.PLAYER_SPEED = 220;
     this.RUN_SPEED = 250;
     this.JUMP_SPEED = 550;
   },
@@ -31,10 +31,12 @@ var GameState = {
     this.load.image('actionButton', 'assets/images/actionButton.png');    
     this.load.image('barrel', 'assets/images/barrel.png');    
 
-    this.load.spritesheet('player', 'assets/images/luigi_spritesheet.png', 34, 56, 10, 0, 0);   
+    this.load.spritesheet('player', 'assets/images/luigi_spritesheet.png', 34, 56, 10, 0, 0);  
+    this.load.spritesheet('susano', 'assets/images/susano.png', 370, 380, 45, 5, 1);   
     this.load.spritesheet('pig', 'assets/images/pig.png', 78, 78, 70, 0, 2);    
     this.load.spritesheet('naruto', 'assets/images/naruto.png', 78, 78, 200, 0, 2);    
-    this.load.spritesheet('fire', 'assets/images/fire_spritesheet.png', 32, 55, 4, 0, 0);      
+    this.load.spritesheet('fire', 'assets/images/fire_spritesheet.png', 32, 55, 4, 0, 0);    
+    this.load.spritesheet('clay', 'assets/images/clay_bird.png', 82, 82, 2, 0, 0);      
 
     this.load.text('level', 'assets/data/level.json');
   },
@@ -55,6 +57,12 @@ var GameState = {
     this.levelData = JSON.parse(this.game.cache.getText('level'));
 
     // console.log(this.levelData)
+
+    this.goal = this.add.sprite(this.levelData.goal.x, this.levelData.goal.y, 'susano');
+    this.goal.anchor.setTo(0.5, 1);
+    this.goal.scale.setTo(.5);
+    this.goal.animations.add('idle', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12, true);
+    this.goal.play('idle');
 
     this.platforms = this.add.group();
     this.platforms.enableBody = true;
@@ -127,10 +135,10 @@ var GameState = {
     narutoChar.animations.add('run', [90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101], 30, true);
     narutoChar.animations.add('jumpUp', [112, 113], 12, false);
     narutoChar.animations.add('fall', [114, 115, 116, 117], 12, false);
-    narutoChar.animations.add('burn', [8, 9], 8, true);
+    narutoChar.animations.add('burn', [62], 8, true);
     narutoChar.bBox = {w: 23, h: 56, x: 37, y: 72};
 
-    this.player = narutoChar;
+    this.player = pigChar;
     this.player.alpha = 1;
 
     this.game.physics.arcade.enable(this.player);
@@ -151,6 +159,36 @@ var GameState = {
 
     this.createOnscreenControls();
 
+    this.barrels = this.add.group();
+    this.barrels.enableBody = true;
+
+    this.barrelCreator = this.game.time.events.loop(Phaser.Timer.SECOND * this.levelData.barrelFrequency, this.createBarrel, this);
+
+
+  },
+
+  createBarrel() {
+    //Pool of objects. Recycle of objects using
+    //select first dead sprite
+    var barrel = this.barrels.getFirstExists(false);
+
+    if(!barrel){
+      barrel = this.barrels.create(0, 0, 'clay', 0);
+      barrel.anchor.setTo(0.5,1);
+      barrel.scale.setTo(0.6);
+
+      barrel.animations.add('flow', [0,1], 8, true);
+      barrel.animations.add('boom', [0,1], 8, true);
+      barrel.play('flow');
+    }
+
+    barrel.body.setSize(40, 11, 0, 0 );
+
+    barrel.body.collideWorldBounds = true;
+    barrel.body.bounce.x = 1;
+
+    barrel.reset(this.levelData.goal.x, this.levelData.goal.y - 10);
+    barrel.body.velocity.x = this.levelData.barrelSpeed;
 
   },
 
@@ -214,30 +252,53 @@ var GameState = {
 
   burned() {
     this.player.customParams.isBurning = true;
+    this.player.body.velocity.x = this.player.body.wasTouching.left ? 200 : -200;
+    this.player.body.velocity.y = -200;
     this.player.play('burn');
-    // this.game.events.add.timer(1000, () => this.player.stop() );
-    // console.log('im burning');
+    this.game.time.events.add(500, () => {
+      this.player.customParams.isBurning = false;
+      this.player.body.velocity.x = 0;
+      this.player.body.velocity.y = 0;
+    });
+    
+  },
+
+  explodeBarrel(ground, barrel){
+    barrel.game.time.events.add(300, () => {
+      barrel.kill();
+    });
   },
 
   update() {
+
+    this.barrels.forEach(item => { 
+      item.scale.x = Math.abs(item.scale.x) * (item.body.velocity.x > 0 ? 1 : -1); 
+    }, this );
 
     this.player.body.setSize(this.player.bBox.w, this.player.bBox.h, this.player.bBox.x * this.player.scale.x - (this.player.width * this.player.anchor.x), this.player.bBox.y - (this.player.height * this.player.anchor.y));
 
     this.game.physics.arcade.collide(this.player, this.ground, this.landed);
     this.game.physics.arcade.collide(this.player, this.platforms, this.landed);
+    this.game.physics.arcade.collide(this.barrels, this.platforms);
+
+    this.game.physics.arcade.collide(this.barrels, this.ground, this.explodeBarrel );
     // this.game.physics.arcade.overlap(this.player, this.fires, this.burned.bind(this) );
+
     this.game.physics.arcade.overlap(this.player, this.fires, () => this.burned() );
+    this.game.physics.arcade.overlap(this.player, this.barrels, () => this.burned() );
+    
+    if(!this.player.customParams.isBurning) {
+      this.player.body.velocity.x = 0;
+    }
 
-    this.player.body.velocity.x = 0;
-
-    if(this.cursors.left.isDown || this.player.customParams.isMovingLeft){
+    if( (this.cursors.left.isDown || this.player.customParams.isMovingLeft) && !this.player.customParams.isBurning){
       this.player.body.velocity.x = -this.PLAYER_SPEED;
       this.player.play('walk');
       this.player.scale.x = -1;
       // this.player.body.setSize(23, 56, -8, -10);
       this.leftArrow.alpha = 0.3;
       this.leftArrow.scale.setTo(.9);
-    }else if(this.cursors.right.isDown || this.player.customParams.isMovingRight){
+    }else if( (this.cursors.right.isDown || this.player.customParams.isMovingRight) && !this.player.customParams.isBurning){
       this.player.body.velocity.x = this.PLAYER_SPEED;
       this.player.play('walk');
       this.player.scale.x = 1;
@@ -258,6 +319,10 @@ var GameState = {
       // this.player.frame = 9;
     }
 
+    if(this.player.customParams.isBurning){
+      this.player.play('burn');
+    }
+
     
 
     if( (this.cursors.up.isDown || this.player.customParams.mustJump) && this.player.body.touching.down) {
@@ -266,16 +331,15 @@ var GameState = {
       // this.player.play('jumpUp');
     }else if ( !this.player.body.touching.down){
       if(this.player.body.velocity.y > 0){
-        // this.player.customParams.isFalling = true;
+        this.player.customParams.isFalling = true;
+      }else{
+        this.player.customParams.isJumping = true;
       }
     }
     if(this.player.body.touching.down){
-      // this.player.customParams.isFalling = false;
-      // this.player.customParams.isJumping = false;
+      this.player.customParams.isFalling = false;
+      this.player.customParams.isJumping = false;
     }
-
-
-    console.log(this.player.animations.currentAnim.name);
 
     if( (this.cursors.up.isDown || this.player.customParams.mustJump)) {
       this.actionButton.alpha = 0.3;
