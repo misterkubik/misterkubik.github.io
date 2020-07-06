@@ -14,7 +14,7 @@ var GameState = {
     this.cursors = this.game.input.keyboard.createCursorKeys();
     // this.shiftBttn = this.input.keyboard.addKeys(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    this.game.world.setBounds(0, 0, 360, 700);
+    this.game.world.setBounds(0, 0, 360, 900);
 
     this.PLAYER_SPEED = 220;
     this.RUN_SPEED = 250;
@@ -44,15 +44,15 @@ var GameState = {
   //executed after everything is loaded
   create() {    
 
-    this.background = this.add.sprite(this.game.world.centerX, this.game.world.height, 'background');
-    this.background.anchor.setTo(0.5,1);
-    this.background.scale.setTo(1.5);
+    this.background = this.add.tileSprite(0, 0, this.game.world.width, this.game.world.height, 'background');
+    // this.background.anchor.setTo(0.5,1);
+    // this.background.scale.setTo(1.5);
 
-    this.ground = this.add.sprite(this.game.world.centerX, this.game.world.height, 'ground');
-    this.ground.anchor.setTo(.5, 1);
+    this.ground = this.add.sprite(0, this.game.world.height - 66, 'ground');
     this.game.physics.arcade.enable(this.ground);
     this.ground.body.allowGravity = false;
     this.ground.body.immovable = true;
+    this.ground.body.setSize(this.game.world.width, 55, 0, 11);
 
     //parse file
     this.levelData = JSON.parse(this.game.cache.getText('level'));
@@ -60,14 +60,17 @@ var GameState = {
 
     this.platforms = this.add.group();
     this.platforms.enableBody = true;
+    var platform;
 
     this.levelData.platformData.forEach(item => {
-      this.platforms.create(item.x, item.y, 'platform');
+      platform = this.platforms.create(item.x, this.game.world.height - item.y, 'platform');
+      platform.body.immovable = true;
+      platform.body.allowGravity = false;
+      platform.body.setSize(platform.body.width, platform.body.height - 30, 0, 10);
+
 
     }, this);
 
-    this.platforms.setAll('body.immovable', true);
-    this.platforms.setAll('body.allowGravity', false);
 
     // this.platform = this.add.sprite(0, 300, 'platform');
     // this.game.physics.arcade.enable(this.platform);
@@ -75,9 +78,9 @@ var GameState = {
     // this.platform.body.immovable = true;
 
     //create susano goal
-    this.goal = this.add.sprite(this.levelData.goal.x, this.levelData.goal.y, 'susano');
+    this.goal = this.add.sprite(this.levelData.goal.x, this.game.world.height - this.levelData.goal.y, 'susano');
     this.goal.anchor.setTo(0.5, 1);
-    this.goal.scale.setTo(.5);
+    this.goal.scale.setTo(1);
     this.goal.animations.add('idle', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12, true);
     this.goal.animations.add('die', [35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15], 12, false);
     this.goal.play('idle');
@@ -94,7 +97,7 @@ var GameState = {
 
     var fire;
     this.levelData.fireData.forEach(item => {
-      fire = this.fires.create(item.x, item.y, 'fire', 1);
+      fire = this.fires.create(item.x, this.game.world.height - item.y, 'fire', 1);
       fire.animations.add('flame', [0,1,2,3], 8, true, true);
       fire.body.setSize(23,23,0, 4);
       fire.anchor.setTo(0.5, 0.9);
@@ -134,7 +137,7 @@ var GameState = {
     pigChar.animations.add('walk', [4, 5, 6, 7], 8, true);
     pigChar.animations.add('jumpUp', [34], 12, false);
     pigChar.animations.add('fall', [33], 12, false);
-    pigChar.animations.add('burn', [18, 19], 8, true);
+    pigChar.animations.add('burn', [18, 19], 12, true);
     pigChar.animations.add('win', [20, 21, 22, 23], 8, true);
     pigChar.bBox = {w: 29, h: 19, x: 37, y: 78};
 
@@ -153,6 +156,7 @@ var GameState = {
     this.game.physics.arcade.enable(this.player);
     this.player.anchor.setTo(0.5, 1);
     this.player.body.collideWorldBounds = true;
+    this.player.reset( this.game.world.width, this.game.world.height - this.ground.body.height - 5);
     // this.player.play('walking');
     this.player.customParams = {life: 3, invinsible: false};
 
@@ -167,7 +171,7 @@ var GameState = {
 
     this.game.camera.follow(this.player);
 
-    this.createOnscreenControls();
+    // this.createOnscreenControls();
 
     this.barrels = this.add.group();
     this.barrels.enableBody = true;
@@ -212,7 +216,7 @@ var GameState = {
     barrel.body.collideWorldBounds = true;
     barrel.body.bounce.x = 1;
     if(!this.goal.customParams.defeated) {
-      barrel.reset(this.levelData.goal.x, this.levelData.goal.y - 10);
+      barrel.reset(this.levelData.goal.x, this.game.world.height - this.levelData.goal.y - 20);
       barrel.body.velocity.x = this.levelData.barrelSpeed;
     }
 
@@ -354,24 +358,24 @@ var GameState = {
       this.player.play('walk');
       this.player.scale.x = -1;
       // this.player.body.setSize(23, 56, -8, -10);
-      this.leftArrow.alpha = 0.3;
-      this.leftArrow.scale.setTo(.9);
+      // this.leftArrow.alpha = 0.3;
+      // this.leftArrow.scale.setTo(.9);
     }else if( (this.cursors.right.isDown || this.player.customParams.isMovingRight) && !this.player.customParams.isBurning){
       this.player.body.velocity.x = this.PLAYER_SPEED;
       this.player.play('walk');
       this.player.scale.x = 1;
       // this.player.body.setSize(23, 56, 11, -10);
-      this.rightArrow.alpha = 0.3;
-      this.rightArrow.scale.setTo(-.9,.9);
+      // this.rightArrow.alpha = 0.3;
+      // this.rightArrow.scale.setTo(-.9,.9);
     }else if(this.player.customParams.isFalling){
       this.player.play('fall');
     }else if(this.player.customParams.isJumping){
       this.player.play('jumpUp');
     }else{
-      this.leftArrow.alpha = 0.6;
-      this.rightArrow.alpha = 0.6;
-      this.leftArrow.scale.setTo(1);
-      this.rightArrow.scale.setTo(-1,1);
+      // this.leftArrow.alpha = 0.6;
+      // this.rightArrow.alpha = 0.6;
+      // this.leftArrow.scale.setTo(1);
+      // this.rightArrow.scale.setTo(-1,1);
       this.player.play('idle');
       // this.player.animations.stop();
       // this.player.frame = 9;
@@ -400,11 +404,11 @@ var GameState = {
     }
 
     if( (this.cursors.up.isDown || this.player.customParams.mustJump)) {
-      this.actionButton.alpha = 0.3;
-      this.actionButton.scale.setTo(.9);
+      // this.actionButton.alpha = 0.3;
+      // this.actionButton.scale.setTo(.9);
     }else if ( !this.player.body.touching.down){
-      this.actionButton.alpha = 0.6;
-      this.actionButton.scale.setTo(1);
+      // this.actionButton.alpha = 0.6;
+      // this.actionButton.scale.setTo(1);
     }
 
     this.barrels.forEach(item => { 
