@@ -6,6 +6,8 @@ SpaceHipster.PlayerBullet = function(game, x, y){
     this.animations.add('fly', [0,1,2,3], 20, true);
     this.play('fly');
 
+    
+
     this.anchor.setTo(0.5);
     this.scale.setTo(.6);
     this.checkWorldBounds = true;

@@ -8,6 +8,7 @@ SpaceHipster.EnemyBullet = function(game, x, y){
 
     this.anchor.setTo(0.5);
     this.scale.setTo(.4);
+    
     this.checkWorldBounds = true;
     this.outOfBoundsKill = true;
 };
