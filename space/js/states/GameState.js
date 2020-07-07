@@ -34,52 +34,63 @@ SpaceHipster.GameState = {
     this.background.autoScroll(0, 25);
     this.space.autoScroll(0, 15);
 
-    this.player = this.add.sprite(this.game.world.centerX, this.game.world.height - 200, 'player');
+    this.player = this.add.sprite(this.game.world.centerX, this.game.world.height - 100, 'player');
+    this.player.anchor.setTo(.5);
     this.game.physics.arcade.enable(this.player);
     this.player.body.collideWorldBounds = true;
-    this.player.anchor.setTo(.5);
-
-
 
     this.stars = this.add.tileSprite(0, 0, this.game.world.width, this.game.world.height, 'space');
     this.stars.autoScroll(0, 45);
-   
+
+    this.initBullets();   
+    this.shootingTimer = this.game.time.events.loop(Phaser.Timer.SECOND / 5, this.createPlayerBullets, this);
   },
   update: function() {
+
+    // console.log(this.playerBullets.children.length);
 
       this.player.body.velocity.x = 0;
       this.player.body.velocity.y = 0;
 
-    if (this.cursors.left.isDown)
-    {
-      this.background.tilePosition.x += .5;
-      this.space.tilePosition.x += .2;
-      this.stars.tilePosition.x += 1;
 
-      this.player.body.velocity.x = -this.PLAYER_SPEED;
-    }
-    else if (this.cursors.right.isDown)
+    if(this.game.input.activePointer.isDown || this.cursors.left.isDown || this.cursors.right.isDown)
     {
-      this.background.tilePosition.x -= .5;
-      this.space.tilePosition.x -= .2;
-      this.stars.tilePosition.x -= 1;
-      this.player.body.velocity.x = this.PLAYER_SPEED;
+      var direction;
+      if(this.game.input.activePointer.isDown)
+      {
+        var targetX = this.game.input.activePointer.position.x;
+        direction = targetX >= this.game.world.centerX ? 1 : -1;
+      }else{
+        direction = this.cursors.right.isDown ? 1 : -1;
+      }
+
+        this.player.body.velocity.x = direction * this.PLAYER_SPEED;
+        this.background.tilePosition.x += .5 * -direction;
+        this.space.tilePosition.x += .2 * -direction;
+        this.stars.tilePosition.x += 1 * -direction;
     }
 
-    if (this.cursors.up.isDown)
+  },
+
+  initBullets: function(){
+    this.playerBullets = this.add.group();
+    this.playerBullets.enableBody = true;
+  },
+
+  createPlayerBullets: function(){
+    var bullet = this.playerBullets.getFirstExists(false);
+    if(!bullet)
     {
-      this.background.tilePosition.y += .5;
-      this.space.tilePosition.y += .2;
-      this.stars.tilePosition.y += 1;
-      this.player.body.velocity.y = -this.PLAYER_SPEED / 2;
+      bullet = new SpaceHipster.PlayerBullet(this.game, this.player.x, this.player.top);
+      this.playerBullets.add(bullet);
+    }else{
+      //reset position
+      bullet.reset(this.player.x, this.player.top);
     }
-    else if (this.cursors.down.isDown)
-    {
-      this.background.tilePosition.y -= .6;
-      this.space.tilePosition.y -= .4;
-      this.stars.tilePosition.y -= 1.2;
-      this.player.body.velocity.y = this.PLAYER_SPEED / 2;
-    }
+    //set some velocity
+    bullet.body.velocity.y = this.BULLET_SPEED;
+
+
   },
 
 };
