@@ -146,15 +146,15 @@ SpaceHipster.GameState = {
 
     this.emitter = this.game.add.emitter(bullet.x, bullet.top, 5);
     var particleName = ('beamsParticle');
-    var ptxLife = 750;
+    var ptxLife = 850;
     this.emitter.makeParticles(particleName);
 
-    this.emitter.minRotation = -5;
-    this.emitter.maxRotation = 5;
+    this.emitter.minRotation = -15;
+    this.emitter.maxRotation = 15;
     this.emitter.minParticleScale = .2;
-    this.emitter.maxParticleScale = .75;
-    this.emitter.minParticleSpeed.setTo(-50, -50);
-    this.emitter.maxParticleSpeed.setTo(50, 100);
+    this.emitter.maxParticleScale = 1;
+    this.emitter.minParticleSpeed.setTo(-50, -20);
+    this.emitter.maxParticleSpeed.setTo(50, 200);
     this.emitter.gravity = -300;
     this.emitter.drag = 2000;
     this.emitter.start(true, ptxLife, null, 5);
