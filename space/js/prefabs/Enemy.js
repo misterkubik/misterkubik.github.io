@@ -39,16 +39,46 @@ SpaceHipster.Enemy.prototype.damage = function(amount){
     //particle explosion
     if(this.health <= 0)
     {
-        var emitter = this.game.add.emitter(this.x, this.bottom, 25 * this.scale.x);
+        var emitter = this.game.add.emitter(this.x, this.bottom, 50 * this.scale.x);
         var particleName = this.key.replace('Enemy','Particle');
+        var ptxLife = 500;
         emitter.makeParticles(particleName);
-        emitter.minParticleSpeed.setTo(-100 * this.scale.x, -200 * this.scale.y);
-        emitter.maxParticleSpeed.setTo(100 * this.scale.x, 10 * this.scale.y);
-        emitter.gravity = -100;
-        emitter.start(true, 500, null, 25 * this.scale.x);
+        emitter.minRotation = -5;
+        emitter.maxRotation = 5;
+        emitter.minParticleScale = .5 * this.scale.y;
+        emitter.maxParticleScale = 5 * this.scale.y;
+        emitter.minParticleSpeed.setTo(-70 * this.scale.x, -175 * this.scale.y);
+        emitter.maxParticleSpeed.setTo(70 * this.scale.x, 20 * this.scale.y);
+        emitter.gravity = -200;
+        emitter.start(true, ptxLife, null, 50 * this.scale.x);
+
+        emitter.children.forEach((ptx) => {
+            var tweenScale = ptx.game.add.tween(ptx.scale);
+            var tweenAlpha = ptx.game.add.tween(ptx);
+            tweenScale.to({ x: 0, y: 0 }, ptxLife);
+            tweenAlpha.to({ alpha: 0 }, ptxLife);
+            tweenScale.start();
+            tweenAlpha.start();
+        }, emitter);
 
         this.enemyTimer.pause();
         this.play('dead');
+
+
+      if(SpaceHipster.GameState.currentEnemyIndex == SpaceHipster.GameState.levelData.enemies.length && SpaceHipster.GameState.enemies.countLiving() == 0)
+      {
+        SpaceHipster.GameState.time.events.add(2000, function(){
+            if(this.currentLevel < this.numLevels)
+            {
+              this.currentLevel++;
+            }else{
+              this.currentLevel = 1;
+            }
+            SpaceHipster.GameState.gameOver('LEVEL\nCOMPLETE', this.currentLevel);
+            // this.game.state.start('GameState', true, false, this.currentLevel);
+        }, SpaceHipster.GameState);
+      }
+
     }
 };
 
