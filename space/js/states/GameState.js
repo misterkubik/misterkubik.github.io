@@ -48,6 +48,8 @@ SpaceHipster.GameState = {
   create: function() {
     this.cursors = this.game.input.keyboard.createCursorKeys();
 
+    this.soundtrack = this.add.audio('ost');
+
     this.background = this.add.tileSprite(0, 0, this.game.world.width, this.game.world.height, 'nebula');
     this.space = this.add.tileSprite(0, 0, this.game.world.width, this.game.world.height, 'starfield');
     
@@ -70,7 +72,6 @@ SpaceHipster.GameState = {
     //load level
     this.loadLevel();
 
-    this.soundtrack = this.add.audio('ost');
     this.soundtrack.play();
 
     this.textStyle = {fill: '#FFFFFF', font: 'bold Square721 BT', fontSize: '48px', align: 'center', };
@@ -212,9 +213,6 @@ SpaceHipster.GameState = {
 
 
     this.gameOver('GAME OVER', 1);
-
-    // this.game.state.start('GameState');
-    this.soundtrack.stop();
   },
 
   gameOver(str, level){
@@ -223,6 +221,7 @@ SpaceHipster.GameState = {
     this.textFadeOutTween.to({alpha: 1}, 1000);
     this.textFadeOutTween.delay(0);
     this.textFadeOutTween.onComplete.add(() => {
+      this.soundtrack.stop();
       this.game.state.start('GameState', true, false, level);
     }, this);
     this.textFadeOutTween.start();
@@ -247,7 +246,7 @@ SpaceHipster.GameState = {
     this.endOfLevelTimer = this.game.time.events.add(this.levelData.duration * 1000, function(){
       // console.log('LEVEL ENDED');
 
-      this.soundtrack.stop();
+      this.soundtrack.play();
 
       if(this.currentLevel < this.numLevels)
       {
