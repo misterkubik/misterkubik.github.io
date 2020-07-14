@@ -86,10 +86,9 @@ Match3.Board.prototype.consoleLog = function() {
   //   }
   //   prettyString += '\n';
   // }
-
   // console.log(prettyString);
-  return prettyString;
 
+  return prettyString;
 };
 
 
@@ -208,7 +207,7 @@ Set chained blocks to zero
 
       //kill the block object
       this.state.getBlockFromColRow(block).kill();
-      
+
    }, this);
  };
 
@@ -238,6 +237,8 @@ Move down blocks to fill in the emty cells
 
 Match3.Board.prototype.updateGrid = function(){
   var foundBlock;
+  var animDealy = 100;
+  var delayBlock = 0;
 
   //go through all the rows from bottom up
   for(var i = this.rows - 1; i >= 0; i--)
@@ -256,6 +257,7 @@ Match3.Board.prototype.updateGrid = function(){
           {
             this.dropBlock(k, i, j);
             foundBlock = true;
+            delayBlock++;
             break;
           }
         }
