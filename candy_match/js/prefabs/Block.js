@@ -5,6 +5,8 @@ Match3.Block = function(state, x, y, data) {
 
   this.game = state.game;
   this.state = state;
+  this.row = data.row;
+  this.col = data.col;
 
   this.anchor.setTo(0.5);
 
@@ -12,4 +14,24 @@ Match3.Block = function(state, x, y, data) {
 
 Match3.Block.prototype = Object.create(Phaser.Sprite.prototype);
 Match3.Block.prototype.constructor = Match3.Block;
+
+Match3.Block.prototype.reset = function(x, y, data){
+  Phaser.Sprite.prototype.reset.call(this, x, y);
+  this.loadTexture(data.asset);
+  this.row = data.row;
+  this.col = data.col;
+};
+
+Match3.Block.prototype.kill = function(){
+  this.loadTexture('deadBlock');
+  this.row = null;
+  this.col = null;
+  var self = this;
+  var poofAnim = this.game.add.tween(this.scale);
+  poofAnim.to({x: 0.8, y: .9}, 100).to({x: 1.3, y: 1.1}, 200).to({x: 0, y: 0.1}, 100).onComplete.add(() => {
+    Phaser.Sprite.prototype.kill.call(this);
+  }, self);
+
+  poofAnim.start();
+};
 
