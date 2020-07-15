@@ -45,6 +45,14 @@ Match3.Board.prototype.populateGrid = function(){
       this.grid[i][j] = variation;
     }
   }
+    /* 
+      if there are some chains, then repopulate
+    */
+
+    if(this.findAllChains().length > 0)
+    {
+      this.populateGrid();
+    }
 };
 
 Match3.Board.prototype.populateReserveGrid = function(){
@@ -65,29 +73,6 @@ Match3.Board.prototype.consoleLog = function() {
   '\n' + 
   this.grid.map(item => item.join(' ')).join('\n');
 
-
-  // var i,j,variation;
-  // for(i = 0; i < this.rows; i++) {
-  //   for(j = 0; j < this.cols; j++) {
-  //     prettyString += this.grid[i][j];
-  //   }
-  //   prettyString += '\n';
-  // }
-  // prettyString += '\n';
-
-  // for(j = 0; j < this.cols; j++) {
-  //   prettyString += '-';
-  // }
-  // prettyString += '\n\n';
-
-  // for(i = 0; i < this.RESERVE_ROW; i++) {
-  //   for(j = 0; j < this.cols; j++) {
-  //     prettyString += this.reserveGrid[i][j];
-  //   }
-  //   prettyString += '\n';
-  // }
-  // console.log(prettyString);
-
   return prettyString;
 };
 
@@ -101,6 +86,13 @@ Match3.Board.prototype.swap = function(source, target) {
   this.grid[target.row][target.col] = this.grid[source.row][source.col];
   this.grid[source.row][source.col] = temp;
 
+  var tempPos = {row: source.row, col: source.col};
+  
+  source.row = target.row;
+  source.col = target.col;
+
+  target.row = tempPos.row;
+  target.col = tempPos.col;
 };
 
 /* 
@@ -202,10 +194,11 @@ Set chained blocks to zero
    var chainedBlocks = this.findAllChains();
 
    //set blocks to zero
-   chainedBlocks.forEach(block => {
+   chainedBlocks.forEach((block, index) => {
       this.grid[block.row][block.col] = 0;
 
       //kill the block object
+      this.state.getBlockFromColRow(block).animDelay = chainedBlocks.length - index + Math.random();
       this.state.getBlockFromColRow(block).kill();
 
    }, this);
@@ -219,6 +212,8 @@ Set chained blocks to zero
 Match3.Board.prototype.dropBlock = function(sourceRow, targetRow, col) {
   this.grid[targetRow][col] = this.grid[sourceRow][col];
   this.grid[sourceRow][col] = 0;
+
+  this.state.dropBlock(sourceRow, targetRow, col);
 }
 
 /* 
@@ -229,6 +224,8 @@ the source is set to zero
 Match3.Board.prototype.dropReserveBlock = function(sourceRow, targetRow, col) {
   this.grid[targetRow][col] = this.reserveGrid[sourceRow][col];
   this.reserveGrid[sourceRow][col] = 0;
+
+  this.state.dropReserveBlock(sourceRow, targetRow, col);
 };
 
 /* 
@@ -283,4 +280,5 @@ Match3.Board.prototype.updateGrid = function(){
   //repopulate the reserve grid
 
   this.populateReserveGrid();
-}
+};
+
