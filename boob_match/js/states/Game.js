@@ -127,7 +127,7 @@ Match3.GameState = {
     .delay(this.ANIMATION_TIME * 3 + del)
     .onComplete.add(() => {
       block.play('bottom');
-    }, this);;
+    }, this);
 
     blockScale.to({ x: rescaleBlock * .9, y: rescaleBlock * 1.2}, this.ANIMATION_TIME/1.5)
     .to({ x: rescaleBlock * 1.2, y: rescaleBlock * .8}, this.ANIMATION_TIME/2)
@@ -141,15 +141,17 @@ Match3.GameState = {
   swapBlocks(block1, block2){
     var blockScaleBack = this.game.add.tween(block1.scale);
     var rescaleBlock = block1.backedScale;
-    blockScaleBack.to({x: rescaleBlock * .8, y: rescaleBlock * .6}, 50)
-    .to({x: rescaleBlock * 1.1, y: rescaleBlock * 1.2}, 50)
+    var tempBlock1 = this.getBlockFromColRow({row: block1.row, col: block1.col});
+    var tempBlock2 = this.getBlockFromColRow({row: block2.row, col: block2.col});
+    blockScaleBack.to({x: rescaleBlock * .75, y: rescaleBlock * .7}, 50)
+    .to({x: rescaleBlock * 1.02, y: rescaleBlock * 1.07}, 50)
     .to({x: rescaleBlock, y: rescaleBlock}, 50);
     blockScaleBack.start();
 
     this.hintTimer.removeAll();
 
     var block1Move = this.game.add.tween(block1);
-    block1Move.to({x: block2.x, y: block2.y}, this.ANIMATION_TIME)
+    block1Move.to({x: tempBlock2.x, y: tempBlock2.y}, this.ANIMATION_TIME)
     .onComplete.add(() => {
       this.board.swap(block1, block2);
       if(block1.x == block2.x){
@@ -180,18 +182,45 @@ Match3.GameState = {
         }
       }else{
         this.isReversingSwap = false;
-        this.clearSelection();
+        this.updateBoard();
       }
     }, this);
     block1Move.start();
 
 
     var block2Move = this.game.add.tween(block2);
-    block2Move.to({x: block1.x, y: block1.y}, this.ANIMATION_TIME);
+    block2Move.to({x: tempBlock1.origin.x, y: tempBlock1.origin.y}, this.ANIMATION_TIME);
+    
     block2Move.start();
   },
 
+  dragSwapBlock(block) {
+  
+    if( Math.abs(block.origin.x - this.game.input.position.x ) >  Math.abs(block.origin.y - this.game.input.position.y ) ){
+      block.input.allowHorizontalDrag = true;
+      block.input.allowVerticalDrag = false;
+      block.y = block.origin.y;
+
+      if( Math.abs(block.origin.x - this.game.input.position.x ) > this.BLOCK_SIZE + 6 ){
+        block.input.disableDrag();
+        this.dragBlock(block);
+
+      }
+    }else{
+      block.input.allowHorizontalDrag = false;
+      block.input.allowVerticalDrag = true;
+      block.x = block.origin.x;
+
+      if( Math.abs(block.origin.y - this.game.input.position.y ) > this.BLOCK_SIZE + 6 ){
+        block.input.disableDrag();
+        this.dragBlock(block);
+      }
+    }
+
+  },
+
   pickBlock(block, event){
+
     if(this.uiBlocked)
     {
       return;
@@ -199,11 +228,19 @@ Match3.GameState = {
 
     if(!this.selectedBlock)
     {
+      block.input.draggable = true;
+      block.origin = block.input.dragStartPoint.setTo(block.x, block.y);
+      block.input.enableSnap(this.BLOCK_SIZE + 8, this.BLOCK_SIZE + 8, false, true, block.input.dragStartPoint.x, block.input.dragStartPoint.y);
+      block.input.bringToTop = true;
+
+      block.events.onDragStart.add(this.dragSwapBlock, this);
+      block.events.onDragStop.add(this.dragBlock, this);
+
       var blockScaleUp = this.game.add.tween(block.scale);
 
       block.downPosition = event.position;
 
-      block.events.onInputUp.add(this.slideBlock, this);
+      // block.events.onInputUp.add(this.slideBlock, this);
 
       var rescaleBlock = block.backedScale;
 
@@ -229,7 +266,50 @@ Match3.GameState = {
     }
   },
 
+  dragBlock(block) {
+    block.upPos = block.position;
+
+    block.swipeRate = {x: block.origin.x - block.upPos.x, y: block.origin.y - block.upPos.y};
+
+    if( Math.abs(block.swipeRate.x) > Math.abs(block.swipeRate.y) && Math.abs(block.swipeRate.x) > 10 )
+    {
+      if( block.swipeRate.x < 0 && this.getBlockFromColRow( {row: block.row, col: block.col + 1} ) )
+      {
+        this.targetBlock = this.getBlockFromColRow( {row: block.row, col: block.col + 1} );
+        this.swapBlocks(block, this.targetBlock);
+        this.uiBlocked = true;
+      }else if( block.swipeRate.x > 0 && this.getBlockFromColRow( {row: block.row, col: block.col - 1} ) )
+      {
+        this.targetBlock = this.getBlockFromColRow( {row: block.row, col: block.col - 1} );
+        this.swapBlocks(block, this.targetBlock);
+        this.uiBlocked = true;
+      }else{
+        this.clearSelection();
+      }
+    }else if( Math.abs(block.swipeRate.y) > Math.abs(block.swipeRate.x) && Math.abs(block.swipeRate.y) > 10 )
+    {
+      if( block.swipeRate.y < 0 && this.getBlockFromColRow( {row: block.row + 1, col: block.col} ) ) {
+        this.targetBlock = this.getBlockFromColRow( {row: block.row + 1, col: block.col} );
+        this.swapBlocks(block, this.targetBlock);
+        this.uiBlocked = true;
+      }else if( block.swipeRate.y > 0 && this.getBlockFromColRow( {row: block.row - 1, col: block.col} ) ){
+        this.targetBlock = this.getBlockFromColRow( {row: block.row - 1, col: block.col} );
+        this.swapBlocks(block, this.targetBlock);
+        this.uiBlocked = true;
+      }else{
+        this.clearSelection();
+      }
+    }else{
+      var moveBackTween = this.game.add.tween(block);
+
+      moveBackTween.to({x: block.input.dragStartPoint.x, y: block.input.dragStartPoint.y }, 150);
+      moveBackTween.start();
+      this.clearSelection();
+    }
+  },
+
   slideBlock(block, event) {
+
     block.upPosition = event.position;
     block.swipeRate = {x: block.position.x - block.upPosition.x, y: block.position.y - block.upPosition.y};
 
@@ -262,7 +342,7 @@ Match3.GameState = {
         this.clearSelection();
       }
     }else{
-      // this.clearSelection();
+      this.clearSelection();
     }
   },
 
@@ -280,7 +360,7 @@ Match3.GameState = {
     this.selectedBlock = null;
     this.targetBlock = null;
 
-    this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
+    // this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
   },
 
   hintBlocks(){
@@ -288,7 +368,7 @@ Match3.GameState = {
     var randomHint = hintsList[Math.floor(Math.random() * hintsList.length)];
     this.getBlockFromColRow(randomHint).play(randomHint.chainedTo);
 
-    this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
+    // this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
   },
 
   updateBoard(){
@@ -307,8 +387,14 @@ Match3.GameState = {
     }, this);
   },
 
-  update: function() {
-    // this.textBoard.text = this.board.consoleLog();
+  update(){
+
+    if(this.selectedBlock){
+      if(this.selectedBlock.input.isDragged){
+        this.dragSwapBlock(this.selectedBlock);
+      }
+    }
+    
   }
 
 };
