@@ -22,7 +22,7 @@ Match3.PreloadState = {
     // this.load.image('block8', 'assets/images/bean_white.png');
     // this.load.image('deadBlock', 'assets/images/bean_dead.png');
     this.load.image('cell', 'assets/img/cell.png');
-    this.load.image('background', 'assets/img/background.png');
+    this.load.image('background', 'assets/img/background.jpg');
     this.load.image('cloud', 'assets/img/cloud.png');
 
   },

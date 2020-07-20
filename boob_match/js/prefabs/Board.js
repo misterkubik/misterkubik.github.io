@@ -96,7 +96,7 @@ Match3.Board.prototype.swap = function(source, target) {
 };
 
 /* 
-check if two blocks are adjacent 
+Check if two blocks are adjacent 
 */
 
 Match3.Board.prototype.checkAdjacent = function(source, target) {
@@ -109,63 +109,118 @@ Match3.Board.prototype.checkAdjacent = function(source, target) {
 };
 
 /* 
-Is blocks chained
+Are blocks chained
 */
 
- Match3.Board.prototype.isChained = function(block) {
-    var isChained = false;
-    var variation = this.grid[block.row][block.col];
-    var row = block.row;
-    var col = block.col;
+Match3.Board.prototype.isChained = function(block) {
+  var isChained = false;
+  var variation = this.grid[block.row][block.col];
+  var row = block.row;
+  var col = block.col;
 
-    //left
-    if(variation == this.grid[row][col - 1] && variation == this.grid[row][col - 2])
+  //left
+  if(variation == this.grid[row][col - 1] && variation == this.grid[row][col - 2])
+  {
+    isChained = true;
+  }
+
+  //right
+  if(variation == this.grid[row][col + 1] && variation == this.grid[row][col + 2])
+  {
+    isChained = true;
+  }
+
+  //up
+  if(this.grid[row - 2])
+  {
+    if(variation == this.grid[row - 1][col] && variation == this.grid[row - 2][col])
     {
       isChained = true;
     }
+  }
 
-    //right
-    if(variation == this.grid[row][col + 1] && variation == this.grid[row][col + 2])
+  //down
+  if(this.grid[row + 2])
+  {
+    if(variation == this.grid[row + 1][col] && variation == this.grid[row + 2][col])
     {
       isChained = true;
     }
+  }
 
-    //up
-    if(this.grid[row - 2])
-    {
-      if(variation == this.grid[row - 1][col] && variation == this.grid[row - 2][col])
-      {
-        isChained = true;
-      }
-    }
+  //center - horizontal
+  if(variation == this.grid[row][col + 1] && variation == this.grid[row][col - 1])
+  {
+    isChained = true;
+  }
 
-    //down
-    if(this.grid[row + 2])
-    {
-      if(variation == this.grid[row + 1][col] && variation == this.grid[row + 2][col])
-      {
-        isChained = true;
-      }
-    }
-
-    //center - horizontal
-    if(variation == this.grid[row][col + 1] && variation == this.grid[row][col - 1])
+  //center - vertical
+  if(this.grid[row + 1] && this.grid[row - 1])
+  {
+    if(variation == this.grid[row + 1][col] && variation == this.grid[row - 1][col])
     {
       isChained = true;
     }
+  }
 
-    //center - vertical
-    if(this.grid[row + 1] && this.grid[row - 1])
+  return isChained;
+
+};
+
+/* 
+Are blocks chained with a neibor
+*/
+
+Match3.Board.prototype.softChained = function(block) {
+  var isChained = false;
+  var variation = this.grid[block.row][block.col];
+  var row = block.row;
+  var col = block.col;
+  var neibors = [ {row: row - 1, col: col - 1}, {row: row - 1, col: col + 1}, {row: row + 1, col: col - 1}, {row: row + 1, col: col + 1} ];
+
+  //chech neihbors
+  neibors.forEach((item) => {
+    if(this.grid[item.row])
     {
-      if(variation == this.grid[row + 1][col] && variation == this.grid[row - 1][col])
+      if(this.grid[item.row][item.col])
       {
-        isChained = true;
+        if(this.grid[item.row][item.col] == variation)
+        {
+          isChained = true;
+        }
       }
     }
+  }, this);
 
-    return isChained;
+  return isChained;
+};
 
- };
+/* 
+Are blocks could be chained
+*/
+
+Match3.Board.prototype.canChained = function(block) {
+  var isChained = false;
+  var variation = this.grid[block.row][block.col];
+  var row = block.row;
+  var col = block.col;
+  var neibors = [ {row: row - 1, col: col - 1}, {row: row - 1, col: col + 1}, {row: row + 1, col: col - 1}, {row: row + 1, col: col + 1} ];
+
+  neibors.forEach((item) => {
+    if(this.grid[item.row])
+    {
+      if(this.grid[item.row][item.col])
+      {
+        if(this.softChained(item) && this.grid[item.row][item.col] == variation)
+        {
+          isChained = {isChained: isChained, chainedTo: 'top'};
+        }
+      }
+    }
+  }, this);
+
+  return isChained;
+};
 
 /* 
 Find all chained blocks
@@ -183,6 +238,23 @@ Find all chained blocks
    }
    return chained;
  };
+
+/* 
+Find all hinted blocks
+*/
+
+Match3.Board.prototype.findAllHints = function() {
+  var chained = []; 
+  for(var i = 0; i < this.rows; i++) {
+    for(var j = 0; j < this.cols; j++) {
+      if( this.canChained({row: i, col: j}).isChained )
+      {
+       chained.push({row: i, col: j, chainedTo: this.canChained({row: i, col: j}).chainedTo });
+      }
+    }
+  }
+  return chained;
+};
 
 /* 
 Clear all the chains 
@@ -203,6 +275,7 @@ Set chained blocks to zero
 
    }, this);
  };
+
 
  /* 
  Drop the block in the main grid from a postition to another. 
