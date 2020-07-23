@@ -223,7 +223,7 @@ Match3.GameState = {
       swapAxisTween.start();
       // block.y = block.origin.y;
 
-      if( Math.abs(block.origin.x - this.game.input.position.x ) > this.BLOCK_SIZE + 6 ){
+      if( Math.abs(block.origin.x - this.game.input.position.x ) > (this.BLOCK_SIZE + 5) ){
         block.input.disableDrag();
         this.relBlock(block);
 
@@ -236,7 +236,7 @@ Match3.GameState = {
       swapAxisTween.start();
       // block.x = block.origin.x;
 
-      if( Math.abs(block.origin.y - this.game.input.position.y ) > this.BLOCK_SIZE + 6 ){
+      if( Math.abs(block.origin.y - this.game.input.position.y ) > (this.BLOCK_SIZE + 5) ){
         block.input.disableDrag();
         this.relBlock(block);
       }
@@ -293,8 +293,8 @@ Match3.GameState = {
 
   getDirection(block){
     var thld = 5;
-    var x = Math.abs(block.origin.x - block.x) > thld ? (block.origin.x - block.x) / Math.abs((block.origin.x - block.x)) : 0;
-    var y = Math.abs(block.origin.y - block.y) > thld ? (block.origin.y - block.y) / Math.abs((block.origin.y - block.y)) : 0;
+    var x = ( Math.abs(block.origin.x - block.x) > thld && Math.abs(block.origin.x - block.x) > Math.abs(block.origin.y - block.y) ) ? (block.origin.x - block.x) / Math.abs((block.origin.x - block.x)) : 0;
+    var y = ( Math.abs(block.origin.y - block.y) > thld && Math.abs(block.origin.y - block.y) > Math.abs(block.origin.x - block.x) ) ? (block.origin.y - block.y) / Math.abs((block.origin.y - block.y)) : 0;
 
     return {x: x, y: y};
   },
@@ -310,7 +310,8 @@ Match3.GameState = {
 
     if(targetBlock){
       this.swapBlocks(block, targetBlock);
-          this.uiBlocked = true;
+      this.uiBlocked = true;
+      this.clearSelection();
     }else{
       nearestBlocks.forEach( item => {
         var backTween = this.game.add.tween(item);
@@ -323,43 +324,6 @@ Match3.GameState = {
       backTweenBlock.start();
       this.clearSelection();
     }
-    
-
-    // if( Math.abs(block.swipeRate.x) > Math.abs(block.swipeRate.y) && Math.abs(block.swipeRate.x) > 10 )
-    // {
-    //   if( block.swipeRate.x < 0 && this.getBlockFromColRow( {row: block.row, col: block.col + 1} ) )
-    //   {
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row, col: block.col + 1} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else if( block.swipeRate.x > 0 && this.getBlockFromColRow( {row: block.row, col: block.col - 1} ) )
-    //   {
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row, col: block.col - 1} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else{
-    //     this.clearSelection();
-    //   }
-    // }else if( Math.abs(block.swipeRate.y) > Math.abs(block.swipeRate.x) && Math.abs(block.swipeRate.y) > 10 )
-    // {
-    //   if( block.swipeRate.y < 0 && this.getBlockFromColRow( {row: block.row + 1, col: block.col} ) ) {
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row + 1, col: block.col} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else if( block.swipeRate.y > 0 && this.getBlockFromColRow( {row: block.row - 1, col: block.col} ) ){
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row - 1, col: block.col} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else{
-    //     this.clearSelection();
-    //   }
-    // }else{
-    //   var moveBackTween = this.game.add.tween(block);
-
-    //   moveBackTween.to({x: block.input.dragStartPoint.x, y: block.input.dragStartPoint.y }, 150);
-    //   moveBackTween.start();
-    //   this.clearSelection();
-    // }
   },
 
   clearSelection(){
@@ -371,6 +335,10 @@ Match3.GameState = {
       .to({x: rescaleBlock, y: rescaleBlock}, 50);
       blockScaleBack.start();
     }
+    this.blocks.forEach( item => {
+      var backTween = this.game.add.tween(item);
+      backTween.to({x: item.origin.x, y: item.origin.y}, 75).start();
+    }, this);
 
     this.selectedBlock = null;
     this.targetBlock = null;
