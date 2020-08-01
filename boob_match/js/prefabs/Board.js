@@ -263,7 +263,7 @@ Set chained blocks to zero
 
  Match3.Board.prototype.clearChains = function() {
    //get all chined blocks
-   var chainedBlocks = this.findAllChains();
+   var chainedBlocks = this.findAllChains().reverse();
 
    //set blocks to zero
    chainedBlocks.forEach((block, index) => {

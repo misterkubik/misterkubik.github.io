@@ -5,7 +5,7 @@ Match3.GameState = {
   init: function() {
     this.NUM_ROWS = 6;
     this.NUM_COLS = 6;
-    this.SCREEN_OFFSET = .2;
+    this.SCREEN_OFFSET = 0.2;
     this.NUM_VARIATIONS = 4;
     this.HINT_TIME = 4;
 
@@ -38,6 +38,15 @@ Match3.GameState = {
     this.hintTimer = this.game.time.create(false);
     this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
     this.hintTimer.start();
+    this.sfx = {};
+    this.sfx.wobble = this.game.add.audio('wobble');
+    this.sfx.pops = [this.game.add.audio('pop1'),
+                    this.game.add.audio('pop2'),
+                    this.game.add.audio('pop3'),
+                    this.game.add.audio('pop4'),
+                    this.game.add.audio('pop5')];
+
+    this.popCounter = 0;
 
   },
 
@@ -48,8 +57,9 @@ Match3.GameState = {
     {
       for(var j = 0; j < this.NUM_COLS; j++)
       {
-        x = this.game.world.centerX - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (j + .5) * (this.BLOCK_SIZE + 8);
-        y = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (i + .5) * (this.BLOCK_SIZE + 8);
+        let {x, y} = this.getBlockPositionRowCol({row: i, col: j});
+        // x = this.game.world.centerX - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (j + .5) * (this.BLOCK_SIZE + 8);
+        // y = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (i + .5) * (this.BLOCK_SIZE + 8);
         square = this.add.sprite(x, y, 'cell');
         square.anchor.setTo(.5);
         square.scale.setTo( (this.BLOCK_SIZE + 8 ) / square.width);
@@ -58,6 +68,15 @@ Match3.GameState = {
       }
     }
     this.game.world.bringToTop(this.blocks);
+  },
+
+  getBlockPositionRowCol(pos){
+    let {row,col} = pos;
+    let center = {x: this.game.world.centerX, y: this.game.world.centerY};
+    let x = center.x - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (col + .5) * (this.BLOCK_SIZE + 8);
+    let y = center.y - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (row + .5) * (this.BLOCK_SIZE + 8);
+    
+    return {x: x, y: y};
   },
 
   createBlock(x, y, data){
@@ -74,9 +93,10 @@ Match3.GameState = {
 
   getBlockFromColRow(position){
     var foundBlock;
+    let {row, col} = position;
 
     this.blocks.forEachAlive((block) => {
-      if(block.row === position.row && block.col === position.col)
+      if(block.row === row && block.col === col)
       {
         foundBlock = block;
       }
@@ -86,22 +106,24 @@ Match3.GameState = {
   },
 
   dropReserveBlock(sourceRow, targetRow, col) {
-    var del = col * 40;
+    var del = (col + sourceRow / this.NUM_ROWS) * 100;
     var x = this.game.world.centerX - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (this.BLOCK_SIZE + 8) * (col + .5);
     var y = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 - (this.BLOCK_SIZE + 8) * this.board.RESERVE_ROW + (this.BLOCK_SIZE + 8) * (sourceRow + .5);
     var data = {asset: 'block' + this.board.grid[targetRow][col], row: sourceRow, col: col};
 
     var block = this.createBlock(x, y, data);
-    var targetY = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (targetRow + .5) * (this.BLOCK_SIZE + 8);
+    var targetPos = this.getBlockPositionRowCol({row: targetRow, col: col});
 
     block.row = targetRow;
-    block.origin.y = targetY;
+    block.origin.x = targetPos.x;
+    block.origin.y = targetPos.y;
     block.alpha = 0;
 
     var blockMovement = this.game.add.tween(block);
     var blockScale = this.game.add.tween(block.scale);
     var rescaleBlock = block.backedScale;
-    blockMovement.to({ y: targetY, alpha: 1}, this.ANIMATION_TIME)
+    blockMovement.to({ y: targetPos.y + 5 * targetRow, alpha: 1}, this.ANIMATION_TIME)
+    .to({ y: targetPos.y, alpha: 1}, 100)
     .delay(this.ANIMATION_TIME * 3 + del)
     .onComplete.add(() => {
       block.play('bottom');
@@ -112,12 +134,13 @@ Match3.GameState = {
     .to({ x: rescaleBlock * .95, y: rescaleBlock * 1.1}, this.ANIMATION_TIME/3)
     .to({ x: rescaleBlock, y: rescaleBlock}, this.ANIMATION_TIME/4)
     .delay(this.ANIMATION_TIME * 3 + del);
+
     blockMovement.start();
     blockScale.start();
   },
 
   dropBlock(sourceRow, targetRow, col) {
-    var del = col * 40;
+    var del = (col + sourceRow / this.NUM_ROWS) * 100;
     var block = this.getBlockFromColRow({row: sourceRow, col: col});
     var targetY = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (targetRow + .5) * (this.BLOCK_SIZE + 8);
     block.row = targetRow;
@@ -125,7 +148,8 @@ Match3.GameState = {
     var blockMovement = this.game.add.tween(block);
     var blockScale = this.game.add.tween(block.scale);
     var rescaleBlock = block.backedScale;
-    blockMovement.to({ y: targetY}, this.ANIMATION_TIME)
+    blockMovement.to({ y: targetY + 5 * targetRow}, this.ANIMATION_TIME)
+    .to({ y: targetY}, 100)
     .delay(this.ANIMATION_TIME * 3 + del)
     .onComplete.add(() => {
       block.play('bottom');
@@ -136,11 +160,20 @@ Match3.GameState = {
     .to({ x: rescaleBlock * .95, y: rescaleBlock * 1.1}, this.ANIMATION_TIME/3)
     .to({ x: rescaleBlock, y: rescaleBlock}, this.ANIMATION_TIME/4)
     .delay(this.ANIMATION_TIME * 3 + del);
+
     blockMovement.start();
     blockScale.start();
   },
 
+  popSound(){
+    this.sfx.pops[this.popCounter].play();
+    this.popCounter = (this.popCounter + 1) % this.sfx.pops.length;
+  },
+  
   swapBlocks(block1, block2){
+    //play wobble sound
+    this.sfx.wobble.play();
+
     var rescaleBlock = block1.backedScale;
     this.hintTimer.removeAll();
 
@@ -176,6 +209,7 @@ Match3.GameState = {
         }
       }
 
+
     this.board.swap(block1, block2);
     
     if(!this.isReversingSwap)
@@ -208,40 +242,40 @@ Match3.GameState = {
     var diffRow = Math.abs(source.row - target.row);
     var diffCol = Math.abs(source.col - target.col);
 
-    var isAdjacent = (diffRow == 1 && !diffCol) || (!diffRow && diffCol == 1);
+    var isAdjacent = (diffRow === 1 && !diffCol) || (!diffRow && diffCol === 1);
 
     return isAdjacent;
   },
 
   dragSwapBlock(block) {
+    let {x: oriX, y: oriY} = block.origin;
+    let {x, y} = this.game.input.position;
 
-    if( Math.abs(block.origin.x - this.game.input.position.x ) >  Math.abs(block.origin.y - this.game.input.position.y ) ){
+    if( Math.abs(oriX - x) >  Math.abs(oriY - y) ){
       block.input.allowHorizontalDrag = true;
       block.input.allowVerticalDrag = false;
-      var swapAxisTween = this.game.add.tween(block);
-      swapAxisTween.to({y: block.origin.y}, 50);
+      let swapAxisTween = this.game.add.tween(block);
+      swapAxisTween.to({y: oriY}, 50);
       swapAxisTween.start();
       // block.y = block.origin.y;
 
-      if( Math.abs(block.origin.x - this.game.input.position.x ) > this.BLOCK_SIZE + 6 ){
+      if( Math.abs(oriX - x) > this.BLOCK_SIZE + 6 ){
         block.input.disableDrag();
         this.relBlock(block);
-
       }
     }else{
       block.input.allowHorizontalDrag = false;
       block.input.allowVerticalDrag = true;
-      var swapAxisTween = this.game.add.tween(block);
-      swapAxisTween.to({x: block.origin.x}, 50);
+      let swapAxisTween = this.game.add.tween(block);
+      swapAxisTween.to({x: oriX}, 50);
       swapAxisTween.start();
       // block.x = block.origin.x;
 
-      if( Math.abs(block.origin.y - this.game.input.position.y ) > this.BLOCK_SIZE + 6 ){
+      if( Math.abs(oriY - y) > this.BLOCK_SIZE + 6 ){
         block.input.disableDrag();
         this.relBlock(block);
       }
     }
-
   },
 
   pickBlock(block, event){
@@ -292,11 +326,15 @@ Match3.GameState = {
   },
 
   getDirection(block){
+    let {x: oriX, y: oriY} = block.origin;
+    let {x, y} = block;
     var thld = 5;
-    var x = Math.abs(block.origin.x - block.x) > thld ? (block.origin.x - block.x) / Math.abs((block.origin.x - block.x)) : 0;
-    var y = Math.abs(block.origin.y - block.y) > thld ? (block.origin.y - block.y) / Math.abs((block.origin.y - block.y)) : 0;
+    let lenX = Math.abs(oriX - x);
+    let lenY = Math.abs(oriY - y);
+    var outX = (lenX > thld && lenX > lenY) ? (oriX - x) / Math.abs((oriX - x)) : 0;
+    var outY = (lenY > thld && lenY > lenX) ? (oriY - y) / Math.abs((oriY - y)) : 0;
 
-    return {x: x, y: y};
+    return {x: outX, y: outY};
   },
 
   relBlock(block) {
@@ -321,45 +359,8 @@ Match3.GameState = {
       var backTweenBlock = this.game.add.tween(block);
       backTweenBlock.to({x: block.origin.x, y: block.origin.y}, 100);
       backTweenBlock.start();
-      this.clearSelection();
+      // this.clearSelection();
     }
-    
-
-    // if( Math.abs(block.swipeRate.x) > Math.abs(block.swipeRate.y) && Math.abs(block.swipeRate.x) > 10 )
-    // {
-    //   if( block.swipeRate.x < 0 && this.getBlockFromColRow( {row: block.row, col: block.col + 1} ) )
-    //   {
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row, col: block.col + 1} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else if( block.swipeRate.x > 0 && this.getBlockFromColRow( {row: block.row, col: block.col - 1} ) )
-    //   {
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row, col: block.col - 1} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else{
-    //     this.clearSelection();
-    //   }
-    // }else if( Math.abs(block.swipeRate.y) > Math.abs(block.swipeRate.x) && Math.abs(block.swipeRate.y) > 10 )
-    // {
-    //   if( block.swipeRate.y < 0 && this.getBlockFromColRow( {row: block.row + 1, col: block.col} ) ) {
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row + 1, col: block.col} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else if( block.swipeRate.y > 0 && this.getBlockFromColRow( {row: block.row - 1, col: block.col} ) ){
-    //     this.targetBlock = this.getBlockFromColRow( {row: block.row - 1, col: block.col} );
-    //     this.swapBlocks(block, this.targetBlock);
-    //     this.uiBlocked = true;
-    //   }else{
-    //     this.clearSelection();
-    //   }
-    // }else{
-    //   var moveBackTween = this.game.add.tween(block);
-
-    //   moveBackTween.to({x: block.input.dragStartPoint.x, y: block.input.dragStartPoint.y }, 150);
-    //   moveBackTween.start();
-    //   this.clearSelection();
-    // }
   },
 
   clearSelection(){
@@ -371,6 +372,12 @@ Match3.GameState = {
       .to({x: rescaleBlock, y: rescaleBlock}, 50);
       blockScaleBack.start();
     }
+    this.blocks.forEach(item => {
+      let backTween = this.game.add.tween(item);
+      backTween.to({x: item.origin.x, y: item.origin.y}, 100);
+      backTween.start();
+    }, this);
+
 
     this.selectedBlock = null;
     this.targetBlock = null;
@@ -419,10 +426,10 @@ Match3.GameState = {
 
           if( (Math.abs(item.origin.x - block.x) - Math.abs(item.origin.x - block.origin.x)) < -thld )
             {
-              item.x -= block.deltaX;
+              item.x -= block.deltaX * .9;
             }else if( (Math.abs(item.origin.y - block.y) - Math.abs(item.origin.y - block.origin.y)) < -thld )
             {
-              item.y -= block.deltaY;
+              item.y -= block.deltaY * .9;
             }else{
               backTween.start();
             }
