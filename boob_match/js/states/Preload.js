@@ -14,7 +14,7 @@ Match3.PreloadState = {
     this.load.spritesheet('block2', 'assets/img/nutella_spritesheet.png', 100, 100, 169);
     this.load.spritesheet('block3', 'assets/img/madamx_spritesheet.png', 100, 100, 169);
     this.load.spritesheet('block4', 'assets/img/asian_spritesheet.png', 100, 100, 169);
-    this.load.spritesheet('block5', 'assets/img/ronda_spritesheet.png', 100, 100, 169);
+    this.load.spritesheet('block5', 'assets/img/syren_spritesheet.png', 100, 100, 169);
     this.load.spritesheet('block6', 'assets/img/ronda_spritesheet.png', 100, 100, 169);
     this.load.spritesheet('block7', 'assets/img/ronda_spritesheet.png', 100, 100, 169);
     this.load.spritesheet('block8', 'assets/img/ronda_spritesheet.png', 100, 100, 169);

@@ -8,7 +8,7 @@ Match3.Block = function(state, x, y, data) {
   this.row = data.row;
   this.col = data.col;
   this.animDelay = 10;
-  this.origin = {x: x, y: y};
+  this.origin = this.state.getBlockPositionRowCol({row: this.row, col: this.col});
 
   this.anchor.setTo(0.5);
   this.backedScale = this.state.BLOCK_SIZE / this.width * 1.75;
@@ -34,7 +34,7 @@ Match3.Block.prototype.reset = function(x, y, data){
   this.scale.setTo(this.backedScale);
   this.row = data.row;
   this.col = data.col;
-  this.origin = {x: x, y: y};
+  this.origin = this.state.getBlockPositionRowCol({row: this.row, col: this.col});
 };
 
 Match3.Block.prototype.kill = function(){

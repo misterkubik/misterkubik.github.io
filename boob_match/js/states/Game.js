@@ -6,14 +6,16 @@ Match3.GameState = {
     this.NUM_ROWS = 6;
     this.NUM_COLS = 6;
     this.SCREEN_OFFSET = 0.2;
-    this.NUM_VARIATIONS = 4;
+    this.NUM_VARIATIONS = 5;
+    this.UI_OFFSET = 100;
     this.HINT_TIME = 4;
+    this.SCREEN = this.game.world;
 
-    if( (this.game.world.width - this.game.world.height) < 0)
+    if( (this.SCREEN.width - this.SCREEN.height) < 0)
     {
-      this.BLOCK_SIZE = (this.game.world.width - this.game.world.width * this.SCREEN_OFFSET) / this.NUM_ROWS;
+      this.BLOCK_SIZE = (this.SCREEN.width - this.SCREEN.width * this.SCREEN_OFFSET) / this.NUM_ROWS;
     }else{
-      this.BLOCK_SIZE = (this.game.world.height - this.game.world.height * this.SCREEN_OFFSET) / this.NUM_ROWS;
+      this.BLOCK_SIZE = (this.SCREEN.height - this.SCREEN.height * this.SCREEN_OFFSET) / this.NUM_ROWS;
     }
 
     this.ANIMATION_TIME = 200;
@@ -372,11 +374,11 @@ Match3.GameState = {
       .to({x: rescaleBlock, y: rescaleBlock}, 50);
       blockScaleBack.start();
     }
-    this.blocks.forEach(item => {
-      let backTween = this.game.add.tween(item);
-      backTween.to({x: item.origin.x, y: item.origin.y}, 100);
-      backTween.start();
-    }, this);
+    // this.blocks.forEach(item => {
+    //   let backTween = this.game.add.tween(item);
+    //   backTween.to({x: item.origin.x, y: item.origin.y}, 100);
+    //   backTween.start();
+    // }, this);
 
 
     this.selectedBlock = null;
