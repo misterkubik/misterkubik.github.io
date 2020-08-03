@@ -261,11 +261,7 @@ Match3.GameState = {
       swapAxisTween.start();
       // block.y = block.origin.y;
 
-<<<<<<< HEAD
-      if( Math.abs(block.origin.x - this.game.input.position.x ) > (this.BLOCK_SIZE + 5) ){
-=======
       if( Math.abs(oriX - x) > this.BLOCK_SIZE + 6 ){
->>>>>>> a918cff2434d78fba3580f68831be07a391fb92c
         block.input.disableDrag();
         this.relBlock(block);
       }
@@ -277,11 +273,7 @@ Match3.GameState = {
       swapAxisTween.start();
       // block.x = block.origin.x;
 
-<<<<<<< HEAD
-      if( Math.abs(block.origin.y - this.game.input.position.y ) > (this.BLOCK_SIZE + 5) ){
-=======
       if( Math.abs(oriY - y) > this.BLOCK_SIZE + 6 ){
->>>>>>> a918cff2434d78fba3580f68831be07a391fb92c
         block.input.disableDrag();
         this.relBlock(block);
       }
@@ -339,15 +331,10 @@ Match3.GameState = {
     let {x: oriX, y: oriY} = block.origin;
     let {x, y} = block;
     var thld = 5;
-<<<<<<< HEAD
-    var x = ( Math.abs(block.origin.x - block.x) > thld && Math.abs(block.origin.x - block.x) > Math.abs(block.origin.y - block.y) ) ? (block.origin.x - block.x) / Math.abs((block.origin.x - block.x)) : 0;
-    var y = ( Math.abs(block.origin.y - block.y) > thld && Math.abs(block.origin.y - block.y) > Math.abs(block.origin.x - block.x) ) ? (block.origin.y - block.y) / Math.abs((block.origin.y - block.y)) : 0;
-=======
     let lenX = Math.abs(oriX - x);
     let lenY = Math.abs(oriY - y);
     var outX = (lenX > thld && lenX > lenY) ? (oriX - x) / Math.abs((oriX - x)) : 0;
     var outY = (lenY > thld && lenY > lenX) ? (oriY - y) / Math.abs((oriY - y)) : 0;
->>>>>>> a918cff2434d78fba3580f68831be07a391fb92c
 
     return {x: outX, y: outY};
   },
@@ -388,19 +375,11 @@ Match3.GameState = {
       .to({x: rescaleBlock, y: rescaleBlock}, 50);
       blockScaleBack.start();
     }
-<<<<<<< HEAD
-    this.blocks.forEach( item => {
-      var backTween = this.game.add.tween(item);
-      backTween.to({x: item.origin.x, y: item.origin.y}, 75).start();
-    }, this);
-=======
     // this.blocks.forEach(item => {
     //   let backTween = this.game.add.tween(item);
     //   backTween.to({x: item.origin.x, y: item.origin.y}, 100);
     //   backTween.start();
     // }, this);
-
->>>>>>> a918cff2434d78fba3580f68831be07a391fb92c
 
     this.selectedBlock = null;
     this.targetBlock = null;
