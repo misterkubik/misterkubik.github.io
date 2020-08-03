@@ -7,8 +7,8 @@ Match3.Block = function(state, x, y, data) {
   this.state = state;
   this.row = data.row;
   this.col = data.col;
-  this.animDelay = 0;
-  this.origin = {x: x, y: y};
+  this.animDelay = 10;
+  this.origin = this.state.getBlockPositionRowCol({row: this.row, col: this.col});
 
   this.anchor.setTo(0.5);
   this.backedScale = this.state.BLOCK_SIZE / this.width * 1.75;
@@ -34,11 +34,11 @@ Match3.Block.prototype.reset = function(x, y, data){
   this.scale.setTo(this.backedScale);
   this.row = data.row;
   this.col = data.col;
-  this.origin = {x: x, y: y};
+  this.origin = this.state.getBlockPositionRowCol({row: this.row, col: this.col});
 };
 
 Match3.Block.prototype.kill = function(){
-  var del = (this.animDelay || 0) * 20;
+  var del = (this.col + this.row / this.state.NUM_ROWS) * 100;
   this.row = null;
   this.col = null;
   var self = this;
@@ -52,7 +52,7 @@ Match3.Block.prototype.kill = function(){
   emitter.gravity = 0;
   
   this.game.time.events.add(220 + del, () => {
-    // this.loadTexture('deadBlock');
+    this.state.popSound();
   });
   this.game.time.events.add(300 + del, () => {
     emitter.start(true, eLife, null, 10);
