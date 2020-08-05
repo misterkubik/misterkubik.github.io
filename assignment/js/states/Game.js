@@ -2,11 +2,12 @@ var JumpStack = JumpStack || {};
 
 JumpStack.GameState = {
     create() {
-        this.DEFAULT_SPEED = 200;
+        this.DEFAULT_SPEED = 2000;
         this.SPEED_BOOSTER = 5;  // as low as fast 
         this.REPEAT_BLOCKS = 3;
         this.BOUNCE_BOOSTER = 1.05;
-        this.BLOCKS_DELAY = 50;
+        this.BLOCKS_DELAY_MIN = 50;
+        this.BLOCKS_DELAY_MAX = 2000;
         this.introPhase = true;
         var worldCenter = {x: this.game.world.centerX, y: this.game.world.centerY};
         this.background = this.game.add.tileSprite(0, 0, this.game.world.width, this.game.world.height, 'GameAtlas', 'bg');
@@ -23,6 +24,8 @@ JumpStack.GameState = {
         block.body.immovable = true;
         this.blocks.add(block);
         this.blocks.blocksAlive = false;
+
+        this.blocks.numBlocks = 0;
 
         this.blocks.towerHeight = this.getTowerHeight(this.blocks);
 
@@ -59,6 +62,7 @@ JumpStack.GameState = {
         if(!this.player.isPlayerAlive){
             this.state.start('Game');
         }
+
         if(!this.player.isJumping){
             this.player.body.velocity.y = -700;
             this.player.isJumping = true;
@@ -66,36 +70,28 @@ JumpStack.GameState = {
     },
 
     playerHit(player, block) {
-        if( player.body.touching.left || player.body.touching.right ) {
-            // player.kill();
-            this.player.isPlayerAlive = false;
-            
-            block.body.allowGravity = false;
-            block.body.velocity.x = 0;
-            block.body.velocity.y = 0;
-            block.body.immovable = true;
 
+        if( (player.body.touching.left || player.body.touching.right) && block === this.blocks.blocksAlive ) {
+            this.blocks.blocksAlive = false;
+            this.player.isPlayerAlive = false;
+            block.blockMove.stop();
+            
             player.body.allowGravity = false;
+            player.body.immovable = true;
             player.body.velocity.x = 0;
             player.body.velocity.y = 0;
-            player.body.immovable = true;
         }else if( player.body.touching.down ){
 
             this.game.camera.shake = (100, 500);
-
-            block.body.allowGravity = false;
-            block.body.velocity.x = 0;
-            block.body.velocity.y = 0;
-            block.body.immovable = true;
-            
-            if(block === this.blocks.blocksAlive ){
+            if( block === this.blocks.blocksAlive ){
+                this.blocks.towerHeight = block.y;
                 this.blocks.blocksAlive = false;
-                this.game.time.events.add(this.BLOCKS_DELAY, this.createMovingBlock, this);
+                block.blockMove.stop();
+                this.game.time.events.add(this.BLOCKS_DELAY_MIN, this.createMovingBlock, this);
             }
         }
 
         player.isJumping = false;
-
     },
 
     createMovingBlock(isStatic) {
@@ -105,14 +101,28 @@ JumpStack.GameState = {
             var speed = this.DEFAULT_SPEED * (1 + Math.floor(index / this.REPEAT_BLOCKS) / this.SPEED_BOOSTER);
             var frame = 7 + (Math.floor(index / this.REPEAT_BLOCKS) % 5);
             var frameName = (frame + '').length < 2 ? 'block_0' + frame : 'block_' + frame;
-            var block = new JumpStack.Block(this, 
-                this.game.world.centerX - (this.game.world.width + 300) / 2 * dir, 
-                this.blocks.towerHeight - 3, 
-                {asset: 'GameAtlas', frame: frameName, dir: dir, speed: speed}
-            );
+            var x = this.game.world.centerX - (this.game.world.width + 300) / 2 * dir;
+            var y = this.blocks.towerHeight - 3;
 
+            this.blocks.forEach(item => {
+                if(item.y > (this.game.camera.view.bottom + 200)){
+                    item.kill();
+                }
+            }, this);
+
+            var block = this.blocks.getFirstExists(false);
+
+            if(!block){
+                block = new JumpStack.Block(this, 
+                    x, 
+                    y, 
+                    {asset: 'GameAtlas', frame: frameName, dir: dir, speed: speed});
+
+                this.blocks.add(block);
+            }else{
+                block.reset(x, y, {asset: 'GameAtlas', frame: frameName, dir: dir, speed: speed});
+            }
             block.y -= block.body.height;
-            block.body.allowGravity = false;
 
             if(isStatic){
                 block.body.immovable = true;
@@ -121,14 +131,6 @@ JumpStack.GameState = {
                 this.blocks.blocksAlive = block;
             }
 
-            // var cameraMove = this.game.add.tween(this.game.camera);
-            // cameraMove.to({y: (block.y + 100)}, 300);
-            // cameraMove.start();
-
-            // this.game.camera.view.y = block.y;
-
-            
-            this.blocks.add(block);
             this.blocks.towerHeight = this.getTowerHeight(this.blocks);
         }
 
@@ -138,7 +140,6 @@ JumpStack.GameState = {
         this.game.camera.focusOnXY(this.player.x, this.player.y - 50);
         this.game.camera.lerp = 0.5;
         this.game.physics.arcade.collide(this.blocks, this.player, (block, player) => this.playerHit(block, player) );
-        this.game.physics.arcade.collide(this.blocks);
 
     }
 };

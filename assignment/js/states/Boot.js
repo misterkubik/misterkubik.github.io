@@ -16,7 +16,7 @@ JumpStack.BootState = {
     this.game.physics.startSystem(Phaser.Physics.ARCADE);
     this.game.physics.arcade.gravity.y = 1000;
 
-    this.game.world.setBounds(0, 0, this.game.world.width, 9000);
+    this.game.world.setBounds(0, 0, this.game.world.width, 4000);
   },
   preload: function() {
     //assets we'll use in the loading screen
