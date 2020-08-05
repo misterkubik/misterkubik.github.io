@@ -31,7 +31,8 @@ JumpStack.GameState = {
         this.player.anchor.setTo(.5);
         this.game.physics.arcade.enable(this.player);
         this.player.body.gravity.y = 500;
-        this.player.body.setSize(80, 90, 0, 8);
+        this.player.body.setSize(80, 90, 30, 24);
+        // console.log(this.player._frame.height)
         this.player.body.collideWorldBounds = true;
         this.player.isJumping = false;
         this.player.isPlayerAlive = true;
@@ -79,6 +80,9 @@ JumpStack.GameState = {
             player.body.velocity.y = 0;
             player.body.immovable = true;
         }else if( player.body.touching.down ){
+
+            this.game.camera.shake = (100, 500);
+
             block.body.allowGravity = false;
             block.body.velocity.x = 0;
             block.body.velocity.y = 0;
@@ -132,7 +136,9 @@ JumpStack.GameState = {
 
     update() {
         this.game.camera.focusOnXY(this.player.x, this.player.y - 50);
+        this.game.camera.lerp = 0.5;
         this.game.physics.arcade.collide(this.blocks, this.player, (block, player) => this.playerHit(block, player) );
         this.game.physics.arcade.collide(this.blocks);
+
     }
 };
