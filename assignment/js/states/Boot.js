@@ -11,6 +11,12 @@ JumpStack.BootState = {
     //have the game centered horizontally
     this.scale.pageAlignHorizontally = true;
     this.scale.pageAlignVertically = true;
+
+    //Enable arcade physics
+    this.game.physics.startSystem(Phaser.Physics.ARCADE);
+    this.game.physics.arcade.gravity.y = 1000;
+
+    this.game.world.setBounds(0, 0, this.game.world.width, 9000);
   },
   preload: function() {
     //assets we'll use in the loading screen

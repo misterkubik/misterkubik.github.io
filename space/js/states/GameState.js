@@ -13,7 +13,7 @@ SpaceHipster.GameState = {
     //level data
     this.numLevels = 3;
     this.currentLevel = currentLevel || 1;
-    console.log('LEVEL: ' + this.currentLevel);
+    // console.log('LEVEL: ' + this.currentLevel);
 
   },
 
