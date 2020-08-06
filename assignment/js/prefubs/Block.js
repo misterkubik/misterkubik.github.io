@@ -12,24 +12,20 @@ JumpStack.Block = function(state, x, y, data) {
     this.body.immovable = true;
     this.body.allowGravity = false;
     this.body.setSize(this.width, this.height - 12, 0, 2);
+    this.body.blocked.up = true;
+    this.body.blocked.down = true;
+    // this.body.stopVelocityOnCollide = true;
+    // this.body.velocity.x = 200 * this.direction;
+    // this.game.physics.arcade.moveToXY(this, this.game.world.centerX, this.y, 200, this.state.DEFAULT_SPEED);
     
     this.blockMove = this.game.add.tween(this);
-    this.blockMove.to({x: this.game.world.centerX + 20 * this.direction }, this.state.DEFAULT_SPEED, Phaser.Easing.Cubic.In)
-    .to({x: this.game.world.centerX - 10 * this.direction }, this.state.DEFAULT_SPEED / 3, Phaser.Easing.Cubic.Out)
-    .to({x: this.game.world.centerX + 5 * this.direction }, this.state.DEFAULT_SPEED / 3, Phaser.Easing.Cubic.In)
-    .to({x: this.game.world.centerX }, this.state.DEFAULT_SPEED / 4, Phaser.Easing.Cubic.Out);
-
-    
-    this.blockScale = this.game.add.tween(this.scale);
-    this.blockScale.delay(100)
-    .to({x: .95 }, this.state.DEFAULT_SPEED, Phaser.Easing.Cubic.Out)
-    .to({x: 1.01 }, this.state.DEFAULT_SPEED / 3, Phaser.Easing.Cubic.In)
-    .to({x: 1 }, this.state.DEFAULT_SPEED / 4, Phaser.Easing.Cubic.Out);
+    this.blockMove.to({x: this.game.world.centerX }, this.state.DEFAULT_SPEED, Phaser.Easing.Cubic.In);
 
     if(this.direction){
         this.blockMove.start();
-        this.blockScale.start();
     }
+
+    return this;
 };
 
 JumpStack.Block.prototype = Object.create(Phaser.Sprite.prototype);
@@ -41,8 +37,7 @@ JumpStack.Block.prototype.reset = function(x, y, data){
     this.loadTexture(data.asset, data.frame);
 
     this.blockMove = this.game.add.tween(this);
-    this.blockMove.to({x: this.game.world.centerX + 50 * this.direction }, this.state.DEFAULT_SPEED)
-    .to({x: this.game.world.centerX }, this.state.DEFAULT_SPEED / 4);
+    this.blockMove.to({x: this.game.world.centerX }, this.state.DEFAULT_SPEED, Phaser.Easing.Cubic.In);
 
     if(this.direction){
         this.blockMove.start();
