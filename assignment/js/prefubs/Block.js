@@ -4,14 +4,16 @@ JumpStack.Block = function(state, x, y, data) {
     this.state = state;
     this.game = state.game;
     this.direction = data.dir || 0;
+    this.fruitList = this.game.cache.getFrameData('Fruits')._frames;
+    var frameName = this.fruitList[Math.floor( Math.random() * this.fruitList.length)].name;
 
-    Phaser.Sprite.call(this, this.game, x, y, data.asset, data.frame);
+    Phaser.Sprite.call(this, this.game, x, y, data.asset, frameName);
 
     this.anchor.setTo(.5);
     this.game.physics.arcade.enable(this);
     this.body.immovable = true;
     this.body.allowGravity = false;
-    this.body.setSize(this.width, this.height - 12, 0, 2);
+    this.body.setSize(172, 40, 35, 30);
     this.body.blocked.up = true;
     this.body.blocked.down = true;
     // this.body.stopVelocityOnCollide = true;

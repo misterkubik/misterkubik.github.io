@@ -1,0 +1,60 @@
+{"frames": {
+
+"fruit-grapefruit":
+{
+	"frame": {"x":0,"y":0,"w":244,"h":111},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":244,"h":111},
+	"sourceSize": {"w":244,"h":111}
+},
+"fruit-kiwi":
+{
+	"frame": {"x":244,"y":0,"w":244,"h":111},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":244,"h":111},
+	"sourceSize": {"w":244,"h":111}
+},
+"fruit-orange":
+{
+	"frame": {"x":488,"y":0,"w":244,"h":111},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":244,"h":111},
+	"sourceSize": {"w":244,"h":111}
+},
+"fruit-pinaple":
+{
+	"frame": {"x":732,"y":0,"w":244,"h":111},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":244,"h":111},
+	"sourceSize": {"w":244,"h":111}
+},
+"fruit-pitaya":
+{
+	"frame": {"x":976,"y":0,"w":244,"h":111},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":244,"h":111},
+	"sourceSize": {"w":244,"h":111}
+},
+"fruit-watermelon":
+{
+	"frame": {"x":1220,"y":0,"w":244,"h":111},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":244,"h":111},
+	"sourceSize": {"w":244,"h":111}
+}},
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "FruitsAtlas.png",
+	"format": "RGBA8888",
+	"size": {"w":1464,"h":111},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:917eec19db6af65c1193255c2c70ea1e:412a50bc4d5f02fed152bb343a409b25:35e94e5e83e2823c19dc39f8c00f81bc$"
+}
+}

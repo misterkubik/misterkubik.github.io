@@ -2,17 +2,18 @@ var JumpStack = JumpStack || {};
 
 JumpStack.GameState = {
     create() {
-        this.DEFAULT_SPEED = 2000;
+        this.DEFAULT_SPEED = 1500;
         this.REPEAT_BLOCKS = 3;
         this.BOUNCE_BOOSTER = 1.05;
         this.BLOCKS_DELAY_MIN = 50;
         this.BLOCKS_DELAY_MAX = 500;
         this.introPhase = true;
+        this.gameOver = false;
         var worldCenter = {x: this.game.world.centerX, y: this.game.world.centerY};
         this.background = this.game.add.tileSprite(0, -Phaser.DOM.layoutBounds.height / 3, this.game.world.width, Phaser.DOM.layoutBounds.height * 1.5, 'GameAtlas', 'bg');
         this.background.tileScale.setTo(this.background.height / this.background._frame.height);
+        this.background.anchor.setTo(0,1);
         this.background.fixedToCamera = true;
-
 
         this.ground = this.game.add.sprite(this.game.world.centerX, this.game.world.height, 'GameAtlas', 'platform_01');
         this.ground.anchor.setTo(.5,1);
@@ -56,7 +57,8 @@ JumpStack.GameState = {
         this.introText.fixedToCamera = true;
         this.introText.cameraOffset.y = Phaser.DOM.documentBounds.height / 2.3;
 
-
+        this.cameraFollow = this.player;
+        // this.game.camera.setBoundsToWorld();
 
     },
 
@@ -70,9 +72,10 @@ JumpStack.GameState = {
         if(this.introPhase){
             this.introPhase = false;
             var fadeOutText = this.game.add.tween(this.introText);
-            fadeOutText.to({alpha: 0}, 200)
-            .onComplete.add(() => this.createMovingBlock(), this);
+            fadeOutText.to({alpha: 0}, 200);
+            // .onComplete.add(() => this.createMovingBlock(), this);
             fadeOutText.killOnComplete = true;
+            this.createMovingBlock();
             fadeOutText.start();
 
             // this.game.time.events.add(200, this.createMovingBlock, this);
@@ -107,41 +110,37 @@ JumpStack.GameState = {
 
             this.game.camera.shake(.02,200, true, Phaser.Camera.SHAKE_HORIZONTAL );
             this.game.camera.flash(0xffffff, 200);
-            var fadeOutTween = this.game.add.tween(this.overlay);
 
-            fadeOutTween.to({alpha: .95}, 1000, Phaser.Easing.Cubic.Out)
-            .delay(500)
+            var fadeOutTween = this.game.add.tween(this.overlay);
+            fadeOutTween.to({alpha: 1}, 1000, Phaser.Easing.Cubic.Out)
+            .delay(1000)
             .onComplete.add(() => {
                 this.gameOver = true;
             }, this);
+            this.overlay.bringToTop();
+            this.scoreText.bringToTop();
+            fadeOutTween.start();   //Fading in the overlay
 
-            fadeOutTween.start();
-
-            // player.body.stopMovement(true);
-            // player.body.velocity.setTo(0);
-            // player.body.immovable = false;
-            // player.body.allowGravity = true;
             player.isPlayerJump = true;
-
 
             var emitter = this.game.add.emitter(player.x, player.y, 50);
             emitter.width = player.body.width - 40;
-            var eVel = 30;
+            var eVel = 50;
             var eLife = 750;
             emitter.makeParticles('GameAtlas', 'star');
 
-            emitter.minParticleSpeed.setTo(eVel * 3 * block.direction, -eVel * 20);
-            emitter.maxParticleSpeed.setTo(eVel * block.direction, -eVel * 5);
+            emitter.minParticleSpeed.setTo(eVel * 8 * block.direction, -eVel * 10);
+            emitter.maxParticleSpeed.setTo(eVel * 5 *block.direction, -eVel * 2);
             
-            emitter.maxParticleScale = 1;
+            emitter.maxParticleScale = 2;
             emitter.minParticleScale = .2;
 
             emitter.maxParticleAlpha = .9;
-            emitter.minParticleAlpha = .2;
+            emitter.minParticleAlpha = 0;
 
-            emitter.gravity = 500;
+            emitter.gravity = 600;
 
-            emitter.start(true, eLife, null, 5);
+            emitter.start(true, eLife, null, 8);
 
             emitter.children.forEach((ptx) => {
                 var tweenScale = ptx.game.add.tween(ptx.scale);
@@ -156,9 +155,10 @@ JumpStack.GameState = {
                 tweenAlpha.start();
             }, emitter);
 
-
+            this.floatText('Oh no...', player.x, player.bottom, 4);
         }else{
             player.isPlayerJump = false;
+            player.play('idle');
             this.blocks.towerHeight = block.y;
             this.blocks.blocksAlive = null;
             if(this.player.isPlayerAlive){
@@ -193,31 +193,39 @@ JumpStack.GameState = {
 
             var perfectText = 'Perfect!';
 
+            var textTemplates = {
+                perfect: ['Perfect!', 'Excelent!', 'Super!', 'Wow!', 'Great!'],
+                nice: ['Nice!', 'Cool!', 'Great!', 'Hot!', ''],
+                good: ['Good', 'Not bad', 'Smoooth', ''],
+                close: ['Almost', 'Too colse', 'Sharp'],
+                bad: ['Bad', 'Meh', 'So so']
+            }
+
             switch (perfectBlock) {
                 case 0:
-                perfectText = 'Perfect!';
+                perfectText = textTemplates.perfect[ Math.floor(Math.random() * textTemplates.perfect.length )];
                 break;  
 
                 case 1:
-                perfectText = 'Nice!';
+                perfectText = textTemplates.nice[ Math.floor(Math.random() * textTemplates.nice.length )];
                 break;  
 
                 case 2:
-                perfectText = 'Good!';
+                perfectText = textTemplates.good[ Math.floor(Math.random() * textTemplates.good.length )];
                 break;  
 
                 case 3:
-                perfectText = 'Almost!';
+                perfectText = textTemplates.close[ Math.floor(Math.random() * textTemplates.close.length )];
                 break;  
 
                 case 4:
-                perfectText = '';
+                perfectText = textTemplates.bad[ Math.floor(Math.random() * textTemplates.bad.length )];
                 break;  
             }
 
-            this.floatText(perfectText, player.x, player.top);
+            this.floatText(perfectText, player.x, (perfectBlock < 4 ? player.top : player.bottom), perfectBlock);
 
-            var emitter = this.game.add.emitter(player.x, player.bottom, 200);
+            var emitter = this.game.add.emitter(player.x, player.y, 200);
             emitter.width = player.body.width - 40;
             var eVel = 200 - 20 * perfectBlock;
             var eLife = 1250 - 30 * perfectBlock;
@@ -227,15 +235,16 @@ JumpStack.GameState = {
             emitter.minParticleSpeed.setTo(-eVel,-eVel * 5);
             emitter.maxParticleSpeed.setTo(eVel,-eVel * 2);
             
-            emitter.maxParticleScale = 1;
-            emitter.minParticleScale = .2;
+            emitter.maxParticleScale = 3;
+            emitter.minParticleScale = .3;
 
             emitter.maxParticleAlpha = .9;
             emitter.minParticleAlpha = .2;
 
             emitter.gravity = 1000;
 
-            emitter.start(true, eLife, null, 20 - 5 * perfectBlock);
+            this.player.bringToTop();
+            emitter.start(true, eLife, null, 40 - 10 * perfectBlock);
 
             emitter.children.forEach((ptx) => {
                 var tweenScale = ptx.game.add.tween(ptx.scale);
@@ -258,14 +267,16 @@ JumpStack.GameState = {
         this.player.play('idle');
     },
 
-    floatText(text, x, y) {
+    floatText(text, x, y, vel) {
         var textStyle = {fill: '#fff', font: '35px Arial'};
+
+        var dir = vel < 4 ? 1 : -1;
 
         var floatingText = this.game.add.text(x, y, text, textStyle);
         floatingText.anchor.setTo(.5);
 
         var textFloatTween = this.game.add.tween(floatingText);
-        textFloatTween.to({y: y - 80, alpha: 0}, 700, Phaser.Easing.Cubic.InOut);
+        textFloatTween.to({y: y - 80 * dir, alpha: 0}, 700, Phaser.Easing.Cubic.InOut);
         textFloatTween.killOnComplete = true;
 
         
@@ -277,6 +288,28 @@ JumpStack.GameState = {
 
     },
 
+    cameraZoom() {
+        this.cameraFollow = null;
+
+        var cameraView = {
+            scale: Math.min( (this.game.camera.height / (this.blocks.height + 200) ), 1),
+            height: Math.max(this.getTowerHeight(this.blocks) / 2 + 50, this.game.camera.height),
+            y: this.getTowerHeight(this.blocks) / 2,
+            x: 500,
+        };
+
+
+        var cameraZoomOut = this.game.add.tween(this.game.camera.scale);
+        cameraZoomOut.to({ x: cameraView.scale, y: cameraView.scale }, 1500, Phaser.Easing.Cubic.InOut)
+        .delay(500);
+        cameraZoomOut.start();
+
+        var cameraZoomOutMove = this.game.add.tween(this.game.camera);
+        cameraZoomOutMove.to({ x: this.game.camera.x - cameraView.x, y: this.game.world.height }, 1000, Phaser.Easing.Cubic.In)
+        .delay(500);
+        cameraZoomOutMove.start();
+    },
+
     createMovingBlock(isStatic) {
         if(!this.blocks.blocksAlive){
             var dir = isStatic ? 0 : ((Math.random() > .5) ? -1 : 1);
@@ -284,7 +317,7 @@ JumpStack.GameState = {
             this.blocks.numBlocks++;
             var speed = this.DEFAULT_SPEED * (1 + Math.floor(index / this.REPEAT_BLOCKS) / this.SPEED_BOOSTER);
             var frame = 7 + (Math.floor(index / this.REPEAT_BLOCKS) % 5);
-            var frameName = (frame + '').length < 2 ? 'block_0' + frame : 'block_' + frame;
+            var frameName = 'fruit-kiwi';
             var x = this.game.world.centerX - (this.game.world.width + 300) / 2 * dir;
             var y = this.blocks.towerHeight - 2;
 
@@ -300,11 +333,11 @@ JumpStack.GameState = {
                 block = new JumpStack.Block(this, 
                     x, 
                     y, 
-                    {asset: 'GameAtlas', frame: frameName, dir: dir, speed: speed});
+                    {asset: 'Fruits', frame: frameName, dir: dir, speed: speed});
 
                 this.blocks.add(block);
             }else{
-                block.reset(x, y, {asset: 'GameAtlas', frame: frameName, dir: dir, speed: speed});
+                block.reset(x, y, {asset: 'Fruits', frame: frameName, dir: dir, speed: speed});
             }
 
             block.y -= block.body.height;
@@ -318,19 +351,36 @@ JumpStack.GameState = {
             this.blocks.towerHeight = this.getTowerHeight(this.blocks);
         }
         return block;
+        
+    },
+
+    updateGameOnRendererResize(newWidth, newHeight) {
+
+        this.game.width = newWidth;
+        this.game.height = newHeight;
+        this.game.stage.width = newWidth;
+        this.game.stage.height = newHeight;
+        this.game.camera.setSize(newWidth, newHeight);
+        // this.game.input.scale.setTo(rendererScale);
+        this.background.width = newWidth;
+    
     },
 
     update() {
-        this.game.camera.focusOnXY(this.player.x, this.player.y - 50);
-        this.game.camera.lerp = 0.2;
+        if(this.cameraFollow){
+            this.game.camera.focusOnXY(this.cameraFollow.x, this.cameraFollow.y - 50);
+            this.game.camera.lerp = 0.2;
+        }
 
-        // this.game.physics.arcade.collide( this.player, this.blocks, (player, block) => this.playerHit(player, block), (player, block) => this.playerHit(player, block), this );
+        this.updateGameOnRendererResize( (this.game.renderer.width / (this.game.camera.scale.x || 1)), (this.game.renderer.height / (this.game.camera.scale.y || 1)) );
+
+        this.background.cameraOffset.y = Math.min((this.game.camera.height - (this.game.camera.view.bottom - this.game.world.bottom) / 4), this.background.height);
+        
         if(this.blocks.blocksAlive){
             this.game.physics.arcade.collide(this.player, this.blocks.blocksAlive, this.playerHit, null, this);
         }
         this.game.physics.arcade.collide(this.blocks, this.player, this.playerJumpCollide, null, this);
 
-        // this.game.physics.arcade.overlap(this.player, this.blocks.blocksAlive, (block, player) => this.playerHit(block, player), null, this);
 
 
     }
