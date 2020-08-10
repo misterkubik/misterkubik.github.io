@@ -1,0 +1,84 @@
+{"frames": {
+
+"bg1":
+{
+	"frame": {"x":5,"y":5,"w":603,"h":659},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":141,"w":603,"h":659},
+	"sourceSize": {"w":603,"h":800}
+},
+"bg2":
+{
+	"frame": {"x":613,"y":552,"w":603,"h":507},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":293,"w":603,"h":507},
+	"sourceSize": {"w":603,"h":800}
+},
+"bg3":
+{
+	"frame": {"x":613,"y":5,"w":603,"h":542},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":258,"w":603,"h":542},
+	"sourceSize": {"w":603,"h":800}
+},
+"bg4":
+{
+	"frame": {"x":5,"y":669,"w":603,"h":555},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":245,"w":603,"h":555},
+	"sourceSize": {"w":603,"h":800}
+},
+"bg5":
+{
+	"frame": {"x":613,"y":1064,"w":603,"h":393},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":407,"w":603,"h":393},
+	"sourceSize": {"w":603,"h":800}
+},
+"bg_tile":
+{
+	"frame": {"x":110,"y":1404,"w":50,"h":50},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":50,"h":50},
+	"sourceSize": {"w":50,"h":50}
+},
+"ground":
+{
+	"frame": {"x":5,"y":1229,"w":395,"h":170},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":0,"w":395,"h":170},
+	"sourceSize": {"w":415,"h":171}
+},
+"play":
+{
+	"frame": {"x":5,"y":1404,"w":100,"h":100},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":100,"h":100},
+	"sourceSize": {"w":100,"h":100}
+},
+"retry":
+{
+	"frame": {"x":405,"y":1229,"w":199,"h":200},
+	"rotated": false,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":0,"w":199,"h":200},
+	"sourceSize": {"w":200,"h":200}
+}},
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "bgLayered.png",
+	"format": "RGBA8888",
+	"size": {"w":1221,"h":1509},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:a051da408b251e2db96161ef82205c99:8cd85e1908d6145333e6855e91f59619:c5a29618ae392655d88e35a2490f068e$"
+}
+}

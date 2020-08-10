@@ -3,7 +3,7 @@ var JumpStack = JumpStack || {};
 JumpStack.BootState = {
   init: function() {
     //loading screen will have a white background
-    this.game.stage.backgroundColor = '#151332';
+    this.game.stage.backgroundColor = '#417F8F';
 
     //scaling options
     this.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
@@ -16,7 +16,7 @@ JumpStack.BootState = {
     this.game.physics.startSystem(Phaser.Physics.ARCADE);
     this.game.physics.arcade.gravity.y = 1000;
 
-    this.game.world.setBounds(0, 0, this.game.world.width, 9000);
+    this.game.world.setBounds(-2500, 0, 2500, 9000);
   },
   preload: function() {
     //assets we'll use in the loading screen
