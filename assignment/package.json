@@ -1,7 +1,6 @@
 {
-  "name": "assignment",
+  "name": "jumpstack",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
   "scripts": {
     "build": "html-packer --root ./ index.html index_build.html"
@@ -14,5 +13,6 @@
   },
   "devDependencies": {
     "webpack-cli": "^3.3.12"
-  }
+  },
+  "description": ""
 }
