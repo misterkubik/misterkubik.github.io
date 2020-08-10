@@ -16,12 +16,13 @@ JumpStack.GameState = {
         this.background = this.game.add.group();
         this.background.fixedToCamera = true;
 
-        this.bg1 = this.background.create(0, this.game.camera.view.height + 0, 'Background', 'bg1');
-        this.bg2 = this.background.create(0, this.game.camera.view.height + 0, 'Background', 'bg2');
-        this.bg3 = this.background.create(0, this.game.camera.view.height + 0, 'Background', 'bg3');
-        this.bg4 = this.background.create(0, this.game.camera.view.height, 'Background', 'bg4');
-        this.bg5 = this.background.create(0, this.game.camera.view.height, 'Background', 'bg5');
+        this.bg1 = this.background.create(this.game.camera.view.centerX, this.game.camera.view.height + 0, 'Background', 'bg1');
+        this.bg2 = this.background.create(this.game.camera.view.centerX, this.game.camera.view.height + 0, 'Background', 'bg2');
+        this.bg3 = this.background.create(this.game.camera.view.centerX, this.game.camera.view.height + 0, 'Background', 'bg3');
+        this.bg4 = this.background.create(this.game.camera.view.centerX, this.game.camera.view.height, 'Background', 'bg4');
+        this.bg5 = this.background.create(this.game.camera.view.centerX, this.game.camera.view.height, 'Background', 'bg5');
 
+        this.background.setAll('anchor.x', .5);
         this.background.setAll('anchor.y', 1);
 
         this.ground = this.game.add.sprite(this.game.world.centerX - 4, this.game.world.height + 18, 'Background', 'ground');
@@ -54,10 +55,10 @@ JumpStack.GameState = {
 
         this.game.input.minPriorityID = 1;
 
-        this.overlay = this.game.add.tileSprite(0, 0, this.game.world.width, this.game.world.height, 'Background', 'bg_tile');
+        this.overlay = this.game.add.tileSprite(-200, -200, this.game.world.width, this.game.world.height, 'Background', 'bg_tile');
         this.overlay.tileScale.setTo(this.overlay.height / this.overlay._frame.height);
         this.overlay.fixedToCamera = true;
-        this.overlay.alpha = .8;
+        this.overlay.alpha = .7;
 
         var textStyle = {fill: '#fff', font: '50px libre_franklinblack'};
 
@@ -520,9 +521,7 @@ JumpStack.GameState = {
             var scale = this.game.camera.scale.y || 1;
             var zoom = 1 - scale;
             var world = this.game.world;
-            // layer.y = camera.height * scale + (world.height - camera.bottom ) / 10 * index - camera.height * zoom / index;
-            
-            layer.y = camera.height + (world.bottom - camera.bottom ) / 10 * index + 20;
+            layer.y = camera.height + (world.bottom - camera.bottom + 200) / 10 * index;
             
         }, this);
     },
@@ -566,10 +565,8 @@ JumpStack.GameState = {
     update() {
         if(this.cameraFollow){
             this.game.camera.focusOnXY(this.game.world.centerX, this.cameraFollow.y - 50);
-            // this.game.camera.lerp = 0.2;
+            this.game.camera.lerp = 0.2;
         }
-
-        // this.updateGameOnRendererResize( (this.game.renderer.width / (this.game.camera.scale.x || 1)), (this.game.renderer.height / (this.game.camera.scale.y || 1)) );
 
         this.background.cameraOffset.y = 0;
 
