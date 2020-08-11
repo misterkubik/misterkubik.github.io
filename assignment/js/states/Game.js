@@ -64,7 +64,7 @@ JumpStack.GameState = {
 
         this.score = 0;
 
-        this.scoreText = this.game.add.text(cameraCenter.x, cameraCenter.y, this.score, textStyle);
+        this.scoreText = this.game.add.text(cameraCenter.x, cameraCenter.y, '', textStyle);
 
         this.scoreText.anchor.setTo(.5);
         this.scoreText.alpha = 0;
@@ -156,18 +156,20 @@ JumpStack.GameState = {
             fadeOutHint.to({alpha: 0}, 200);
             fadeOutHint.start();
 
+            this.scoreText.text = this.score;
+
             var fadeInScoreY = this.game.add.tween(this.scoreText.cameraOffset);
             fadeInScoreY.from({y: this.scoreText.cameraOffset.y - 100}, 500, Phaser.Easing.Cubic.Out);
             fadeInScoreY.start();
 
-                var fadeOutAutoplay = this.game.add.tween(this.autoplayButton);
-                fadeOutAutoplay.to({alpha: 0}, 500, Phaser.Easing.Cubic.Out);
-                this.game.time.events.add(200, () =>  {
-                    if(!this.autoplayed){
-                            this.autoplayButton.inputEnabled = false;
-                            fadeOutAutoplay.start();
-                    }
-                }, this);
+            var fadeOutAutoplay = this.game.add.tween(this.autoplayButton);
+            fadeOutAutoplay.to({alpha: 0}, 500, Phaser.Easing.Cubic.Out);
+            this.game.time.events.add(200, () =>  {
+                if(!this.autoplayed){
+                        this.autoplayButton.inputEnabled = false;
+                        fadeOutAutoplay.start();
+                }
+            }, this);
 
             this.player.play('ready');
         }
