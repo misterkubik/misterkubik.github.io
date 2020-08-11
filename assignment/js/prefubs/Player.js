@@ -24,7 +24,7 @@ JumpStack.Player = function(state, x, y, data){
         if(this.state.blocks.blocksAlive){
             idleState = this.state.blocks.blocksAlive.direction < 0 ? idle2 : idle3;
         }else{
-            idleState = Math.random > .7 ? idle1 : idle4;
+            idleState = (Math.random() < .7) ? ((Math.random() < .8) ? idle : idle1) : idle4;
         }
         idleState.play();
     });

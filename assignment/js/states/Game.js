@@ -6,7 +6,7 @@ JumpStack.GameState = {
         this.REPEAT_BLOCKS = 3;
         this.BOUNCE_BOOSTER = 1.05;
         this.BLOCKS_DELAY_MIN = 0;
-        this.BLOCKS_DELAY_MAX = 1000;
+        this.BLOCKS_DELAY_MAX = 1500;
         this.START_BLOCKS = 0;
         this.introPhase = true;
         this.gameOver = false;
@@ -58,7 +58,7 @@ JumpStack.GameState = {
         this.overlay = this.game.add.tileSprite(-200, -200, this.game.world.width, this.game.world.height, 'Background', 'bg_tile');
         this.overlay.tileScale.setTo(this.overlay.height / this.overlay._frame.height);
         this.overlay.fixedToCamera = true;
-        this.overlay.alpha = .7;
+        this.overlay.alpha = .8;
 
         var textStyle = {fill: '#fff', font: '50px libre_franklinblack'};
 
@@ -73,6 +73,8 @@ JumpStack.GameState = {
         this.scoreText.strokeThickness = 6;
 
         this.introText = this.game.add.text(cameraCenter.x, 0, 'TAP to JUMP', textStyle);
+
+        this.introText.alpha = 0; // Hide "Tap to Jump" title
 
         this.introText.anchor.setTo(.5);
         this.introText.fontSize = '40px';
@@ -89,7 +91,7 @@ JumpStack.GameState = {
         this.hint = this.game.add.sprite(this.game.camera.view.centerX, this.game.camera.view.y + 30, 'Hint', 'hint_00');
         this.hint.anchor.setTo(.5, 0);
         this.hint.fixedToCamera = true;
-        this.hint.animations.add('hint', null, 30, true);
+        this.hint.animations.add('hint', null, 15, true);
         this.hint.play('hint');
 
         this.retryButton = this.game.add.sprite(this.game.camera.view.centerX, this.game.camera.view.centerY, 'Background', 'retry');
@@ -100,15 +102,18 @@ JumpStack.GameState = {
         this.autoplayButton = this.game.add.button(this.game.camera.view.width - 35, 35, 'Background', this.autoplayToggle, this);
         this.autoplayButton.frameName = 'play';
         this.autoplayButton.anchor.setTo(.5);
-        this.autoplayButton.scale.setTo(.5);
+        this.autoplayButton.scale.setTo(.3);
+        this.autoplayButton.alpha = .5;
         this.autoplayButton.fixedToCamera = true;
 
         this.autoplayButton.input.priorityID = 2;
 
-        this.overlay.bringToTop();
+        // this.overlay.bringToTop();
         this.introText.bringToTop();
         this.hint.bringToTop();
         this.autoplayButton.bringToTop();
+
+        this.player.bringToTop();
 
         // this.autoplayButton.inputEnabled = true;
         // this.autoplayButton.input.add(this, this.autoplay);
@@ -232,7 +237,7 @@ JumpStack.GameState = {
             this.introText.bringToTop();
             this.retryButton.bringToTop();
 
-            this.introText.text = 'TAP to RETRY';
+            this.introText.text = 'RETRY';
 
             fadeOutTween.start();   //Fading in the overlay
             showRetryTween.start(); 
@@ -247,12 +252,12 @@ JumpStack.GameState = {
             emitter.width = player.body.width - 40;
             var eVel = 50;
             var eLife = 750;
-            emitter.makeParticles('GameAtlas', 'star');
+            emitter.makeParticles('Background', 'star');
 
-            emitter.minParticleSpeed.setTo(eVel * 8 * block.direction, -eVel * 10);
-            emitter.maxParticleSpeed.setTo(eVel * 5 *block.direction, -eVel * 2);
+            emitter.minParticleSpeed.setTo(eVel * 8 * block.direction, -eVel * 14);
+            emitter.maxParticleSpeed.setTo(eVel * 5 *block.direction, -eVel * 7);
             
-            emitter.maxParticleScale = 2;
+            emitter.maxParticleScale = .7;
             emitter.minParticleScale = .2;
 
             emitter.maxParticleAlpha = .9;
@@ -355,13 +360,13 @@ JumpStack.GameState = {
             var eVel = 200 - 20 * perfectBlock;
             var eLife = 1250 - 30 * perfectBlock;
             // emitter.makeParticles('GameAtlas', 'star');
-            emitter.makeParticles('GameAtlas', 'white_square');
+            emitter.makeParticles('Background', 'particle');
 
             emitter.minParticleSpeed.setTo(-eVel,-eVel * 5);
             emitter.maxParticleSpeed.setTo(eVel,-eVel * 2);
             
-            emitter.maxParticleScale = 3;
-            emitter.minParticleScale = .3;
+            emitter.maxParticleScale = .5;
+            emitter.minParticleScale = .01;
 
             emitter.maxParticleAlpha = .9;
             emitter.minParticleAlpha = .2;
@@ -454,7 +459,9 @@ JumpStack.GameState = {
     },
 
     getRandomFrame(arr){
-        var frame = arr[Math.floor( Math.random() * arr.length)].name;
+        // console.log(arr);
+        var frame = arr[Math.floor( Math.random() * arr.length)];
+
         if(frame === this.currentFruitFrame){
             frame = this.getRandomFrame(arr);
         }
@@ -468,7 +475,13 @@ JumpStack.GameState = {
             this.blocks.numBlocks++;
             var speed = this.DEFAULT_SPEED * (1 + Math.floor(index / this.REPEAT_BLOCKS) / this.SPEED_BOOSTER);
 
-            this.fruitList = this.game.cache.getFrameData('Fruits')._frames;
+            this.fruitList = this.game.cache.getFrameData('Background')._frames.map(item => {
+                return item.name;
+            }, this);
+
+            this.fruitList = this.fruitList.filter(item => {
+                return /^fruit-/.test(item);
+            });
 
             var frameName = this.getRandomFrame(this.fruitList);
             
@@ -482,11 +495,11 @@ JumpStack.GameState = {
                 block = new JumpStack.Block(this, 
                     x, 
                     y, 
-                    {asset: 'Fruits', frame: frameName, dir: dir, speed: speed});
+                    {asset: 'Background', frame: frameName, dir: dir, speed: speed});
 
                 this.blocks.add(block);
             }else{
-                block.reset(x, y, {asset: 'Fruits', frame: frameName, dir: dir, speed: speed});
+                block.reset(x, y, {asset: 'Background', frame: frameName, dir: dir, speed: speed});
             }
 
             block.y -= block.body.height;
