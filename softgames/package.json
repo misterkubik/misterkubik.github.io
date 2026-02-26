@@ -1,0 +1,26 @@
+{
+  "name": "assignment",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "reset": "rm -r package-lock.json && rm -r node_modules",
+    "dev": "vite",
+    "assets": "node scripts/build-atlas.mjs",
+    "prebuild": "npm run assets",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "pixi.js": "^7.4.3"
+  },
+  "devDependencies": {
+    "free-tex-packer-core": "^0.3.5",
+    "sass": "^1.89.2",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.2"
+  },
+  "private": true
+}
