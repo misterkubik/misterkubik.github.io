@@ -11,6 +11,10 @@ Match3.GameState = {
     this.gesture = null;
     this.pendingDrops = [];
     this.running = true;
+    this.hintsDirty = true;
+    this.hintCache = null;
+    this.performanceWindow = { frames: 0, slow: 0 };
+    this.pathOutput = { x: 0, y: 0 };
     this.hintQueue = null;
     this.hintCurrent = null;
     this.hintDeadline = performance.now() + 10000;
@@ -26,13 +30,16 @@ Match3.GameState = {
     this.popCounter = 0;
     for (var row = 0; row < 6; row++) for (var col = 0; col < 6; col++) {
       var pos = this.getBlockPositionRowCol({ row: row, col: col });
-      var cell = this.add.sprite(pos.x, pos.y, 'cell');
+      var cell = this.add.sprite(pos.x, pos.y, 'blocks', 'cell');
       cell.anchor.setTo(0.5);
       cell.scale.setTo(this.BLOCK_SIZE / cell.width);
       cell.alpha = 0.2;
       this.createBlock(pos.x, pos.y, { row: row, col: col, asset: 'block' + this.board.grid[row][col] });
     }
     this.game.world.bringToTop(this.blocks);
+    this.particles = new Match3.ParticleEmitter(this.game, { maxParticles: 120 }).add({ name: 'explosion' });
+    this.particles.limit = Match3.performanceConfig.maxParticles;
+    this.burstCount = Match3.performanceConfig.burstCount;
     // One invisible DOM hit surface: the canvas. Individual sprites never receive input.
     this.canvas = this.game.canvas;
     this.oldTouchAction = this.canvas.style.touchAction;
@@ -48,6 +55,22 @@ Match3.GameState = {
     window.addEventListener('pointercancel', this.handlers.cancel);
     this.canvas.addEventListener('lostpointercapture', this.handlers.cancel);
     window.addEventListener('blur', this.handlers.blur);
+    this.shuffleButton = document.createElement('button');
+    this.shuffleButton.textContent = 'SHUFFLE';
+    this.shuffleButton.style.cssText = 'position:fixed;transform:translateX(-50%);padding:9px 25px;border:1px solid #ffffff99;border-radius:16px;background:#ffffffcc;color:#654463;font:600 16px sans-serif;cursor:pointer;z-index:2;';
+    this.shuffleClick = this.shuffleBoard.bind(this);
+    this.shuffleButton.addEventListener('click', this.shuffleClick);
+    document.body.appendChild(this.shuffleButton);
+    this.explosionCount = 0;
+    this.counterText = document.createElement('div');
+    this.counterText.textContent = '0';
+    this.counterText.style.cssText = 'position:fixed;transform:translate(-50%,-100%);color:white;font:700 44px sans-serif;text-shadow:0 2px 5px #00000040;pointer-events:none;z-index:2;line-height:1;';
+    document.body.appendChild(this.counterText);
+    this.layoutHandler = this.updateLayout.bind(this);
+    window.addEventListener('resize', this.layoutHandler);
+    window.addEventListener('scroll', this.layoutHandler);
+    this.scale.onSizeChange.add(this.layoutHandler);
+    this.updateLayout();
   },
   getBlockPositionRowCol: function(pos) {
     return { x: this.game.world.centerX + (pos.col - 2.5) * this.PITCH,
@@ -63,7 +86,7 @@ Match3.GameState = {
     return this.blocks.children.find(function(b) { return b.alive && b.row === pos.row && b.col === pos.col; });
   },
   pointerPosition: function(event) {
-    var rect = this.canvas.getBoundingClientRect();
+    var rect = this.canvasRect;
     return { x: (event.clientX - rect.left) * this.game.width / rect.width,
       y: (event.clientY - rect.top) * this.game.height / rect.height };
   },
@@ -202,7 +225,7 @@ Match3.GameState = {
       neighbor ? this.land(neighbor, neighbor.origin, 170, 0, false, valid ? { x: -swapVector.x, y: -swapVector.y } : null) : Promise.resolve()
     ]);
     if (!this.running) return;
-    if (valid) await this.resolveBoard(block);
+    if (valid) { this.hintsDirty = true; await this.resolveBoard(block); }
     else this.uiBlocked = false;
   },
   scaleSelection: function(block, factor) {
@@ -226,6 +249,7 @@ Match3.GameState = {
       var tween = self.add.tween(progress).to({ value: 1 }, duration, Phaser.Easing.Quadratic.InOut, false, delay || 0);
       block.motion = { tween: tween, resolve: resolve, progress: progress, start: start, target: block.origin };
       tween.onComplete.addOnce(function() {
+        if (block.motion && block.motion.scalePeak) block.scale.setTo(block.backedScale);
         block.motion = null;
         block.x = target.x; block.y = target.y;
         var inertiaX = momentum ? momentum.x : dx;
@@ -253,20 +277,9 @@ Match3.GameState = {
     block.shake = null;
     block.row = null; block.col = null;
     ready();
+    this.counterText.textContent = String(++this.explosionCount);
     this.sfx.pops[this.popCounter++ % this.sfx.pops.length].play();
-    var emitter = this.add.emitter(home.x, home.y, 10);
-    emitter.makeParticles('cloud');
-    emitter.minParticleSpeed.setTo(-210, -210); emitter.maxParticleSpeed.setTo(210, 210);
-    emitter.gravity = 0; emitter.setAlpha(0.7, 0, 450); emitter.setScale(1.35, 0, 1.35, 0, 450);
-    emitter.start(true, 450, null, 10);
-    emitter.forEachAlive(function(particle) {
-      // Give each particle its own scale curve, retaining the shrink-to-zero animation.
-      var size = 0.35 + Math.random() * 1.65;
-      particle.setScaleData(emitter.scaleData.map(function(frame) {
-        return { x: frame.x * size, y: frame.y * size };
-      }));
-    });
-    this.time.events.add(500, function() { emitter.destroy(); });
+    this.particles.burst(home.x, home.y, this.burstCount);
     var scale = this.add.tween(block.scale).to({ x: 0, y: 0 }, 120, Phaser.Easing.Back.In, true);
     await new Promise(function(resolve) { scale.onComplete.addOnce(resolve); });
     block.row = null; block.col = null;
@@ -316,6 +329,73 @@ Match3.GameState = {
     var block = this.createBlock(source.x, source.y, { row: targetRow, col: col, asset: 'block' + this.board.grid[targetRow][col] });
     this.pendingDrops.push(this.land(block, target, 220 + (targetRow + this.NUM_ROWS - sourceRow) * 35, this.dropDelay(targetRow, col), true));
   },
+  shufflePathPoint: function(points, progress, output) {
+    // Two Catmull-Rom segments with extrapolated outer points, expressed as Hermite curves.
+    var segment = progress < 0.5 ? 0 : 1;
+    var t = segment === 0 ? progress * 2 : (progress - 0.5) * 2;
+    var start = points[segment], end = points[segment + 1];
+    var tangentX = (points[2].x - points[0].x) / 2, tangentY = (points[2].y - points[0].y) / 2;
+    if (Math.hypot(tangentX, tangentY) < 0.001) {
+      tangentX = -(points[1].y - points[0].y) * 0.5; tangentY = (points[1].x - points[0].x) * 0.5;
+    }
+    var firstX = segment === 0 ? end.x - start.x : tangentX;
+    var firstY = segment === 0 ? end.y - start.y : tangentY;
+    var lastX = segment === 0 ? tangentX : end.x - start.x;
+    var lastY = segment === 0 ? tangentY : end.y - start.y;
+    var t2 = t * t, t3 = t2 * t;
+    var h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t;
+    var h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+    output = output || {};
+    output.x = h00 * start.x + h10 * firstX + h01 * end.x + h11 * lastX;
+    output.y = h00 * start.y + h10 * firstY + h01 * end.y + h11 * lastY;
+    return output;
+  },
+  shuffleBoard: async function() {
+    if (this.uiBlocked || this.gesture) return;
+    this.resetHints();
+    this.uiBlocked = true;
+    this.shuffleButton.disabled = true;
+    this.hintsDirty = true;
+    var self = this;
+    var blocks = this.blocks.children.filter(function(block) { return block.alive; });
+    var order = blocks.slice(), original = this.board.grid.map(function(row) { return row.slice(); });
+    // Keep all existing objects and counts; avoid creating automatic matches on shuffle.
+    var accepted = false;
+    for (var attempt = 0; attempt < 100; attempt++) {
+      for (var i = order.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1)), temp = order[i]; order[i] = order[j]; order[j] = temp;
+      }
+      order.forEach(function(block, index) {
+        self.board.grid[Math.floor(index / self.NUM_COLS)][index % self.NUM_COLS] = original[block.row][block.col];
+      });
+      if (!this.board.findAllChains().length) { accepted = true; break; }
+    }
+    if (!accepted) {
+      this.board.grid = original;
+      order = blocks.slice().sort(function(a, b) { return a.row * self.NUM_COLS + a.col - b.row * self.NUM_COLS - b.col; });
+    }
+    await Promise.all(order.map(function(block, index) {
+      self.stopMotion(block);
+      if (block.selectionTween) block.selectionTween.stop();
+      var start = { x: block.origin.x, y: block.origin.y };
+      block.x = start.x; block.y = start.y;
+      var angle = Math.random() * Math.PI * 2;
+      var distance = self.BLOCK_SIZE * (2 + Math.random() * 2);
+      var waypoint = { x: start.x + Math.cos(angle) * distance, y: start.y + Math.sin(angle) * distance };
+      block.row = Math.floor(index / self.NUM_COLS); block.col = index % self.NUM_COLS;
+      var target = self.getBlockPositionRowCol(block);
+      var vector = { x: target.x - waypoint.x, y: target.y - waypoint.y };
+      var distanceFromCenter = Math.hypot(start.x - self.game.world.centerX, start.y - self.game.world.centerY) / self.PITCH;
+      var delay = Math.random() * 100 + distanceFromCenter * 40;
+      var flight = self.land(block, target, 850, delay, false, vector);
+      block.motion.path = [start, waypoint, target];
+      block.motion.scalePeak = 1 + Math.random();
+      block.motion.velocityPose = true;
+      return flight;
+    }));
+    this.uiBlocked = false;
+    this.resetHints();
+  },
   resetHints: function() {
     if (this.hintCurrent) {
       var block = this.hintCurrent.block;
@@ -325,7 +405,7 @@ Match3.GameState = {
     this.hintQueue = null;
     this.hintDeadline = performance.now() + 10000;
   },
-  winningCells: function() {
+  computeWinningCells: function() {
     var grid = this.board.grid, cells = {}, self = this;
     for (var row = 0; row < this.NUM_ROWS; row++) for (var col = 0; col < this.NUM_COLS; col++) {
       [[1, 0], [0, 1]].forEach(function(direction) {
@@ -353,15 +433,26 @@ Match3.GameState = {
       });
     }
     var result = Object.keys(cells).map(function(key) { return cells[key]; });
+    return result;
+  },
+  winningCells: function() {
+    if (this.hintsDirty || !this.hintCache) {
+      this.hintCache = this.computeWinningCells();
+      this.hintsDirty = false;
+    }
+    var result = this.hintCache.slice();
     for (var i = result.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var temp = result[i]; result[i] = result[j]; result[j] = temp;
+      var j = Math.floor(Math.random() * (i + 1)), temp = result[i]; result[i] = result[j]; result[j] = temp;
     }
     return result;
   },
   updateHints: function() {
     var now = performance.now();
-    if (this.uiBlocked || this.gesture) { this.resetHints(); return; }
+    if (this.uiBlocked || this.gesture) {
+      if (this.uiBlocked) this.hintsDirty = true;
+      this.resetHints(); return;
+    }
+    if (this.hintsDirty) { this.hintCache = this.computeWinningCells(); this.hintsDirty = false; }
     if (this.hintCurrent) {
       if (now - this.hintCurrent.start < 1300) return;
       var block = this.hintCurrent.block;
@@ -387,9 +478,35 @@ Match3.GameState = {
       this.hintCurrent = { block: candidate, start: now, x: x / length, y: y / length };
     }
   },
+  updateLayout: function() {
+    if (!this.shuffleButton) return;
+    var rect = this.canvas.getBoundingClientRect();
+    this.canvasRect = rect;
+    this.shuffleButton.style.left = (rect.left + rect.width / 2) + 'px';
+    var bottom = this.getBlockPositionRowCol({ row: this.NUM_ROWS - 1, col: 0 }).y + this.BLOCK_SIZE / 2;
+    var top = this.getBlockPositionRowCol({ row: 0, col: 0 }).y - this.BLOCK_SIZE / 2;
+    var margin = Math.min(32, Math.max(8, (rect.height - bottom * rect.height / this.game.height) - 44));
+    this.shuffleButton.style.top = (rect.top + bottom * rect.height / this.game.height + margin) + 'px';
+    this.counterText.style.left = (rect.left + rect.width / 2) + 'px';
+    this.counterText.style.top = (rect.top + top * rect.height / this.game.height - margin) + 'px';
+  },
+  observePerformance: function(milliseconds) {
+    if (!(this.uiBlocked || this.gesture || this.particles.activeCount) || milliseconds > 150) return;
+    var window = this.performanceWindow;
+    window.frames++;
+    if (milliseconds > 28) window.slow++;
+    if (window.frames >= 120) {
+      if (window.slow > 30) { this.particles.limit = 72; this.burstCount = 6; }
+      window.frames = 0; window.slow = 0;
+    }
+  },
   update: function() {
-    var dt = Math.min(this.time.elapsedMS / 1000, 0.025), self = this;
+    var dt = Math.min(this.time.elapsedMS / 1000, 0.1), self = this;
     this.updateHints();
+    var disabled = !!(this.uiBlocked || this.gesture);
+    if (this.shuffleButton.disabled !== disabled) this.shuffleButton.disabled = disabled;
+    this.particles.update(dt);
+    this.observePerformance(this.time.elapsedMS);
     if (this.gesture) {
       var g = this.gesture;
       // A stationary cursor stops emitting move events; relax back to the central frame.
@@ -402,59 +519,72 @@ Match3.GameState = {
     this.blocks.forEachAlive(function(block) {
       if (block.motion) {
         var m = block.motion, p = m.progress.value;
-        block.x = m.start.x + (m.target.x - m.start.x) * p;
-        block.y = m.start.y + (m.target.y - m.start.y) * p;
-        block.pose(block.x - m.target.x, block.y - m.target.y);
+        if (m.path) {
+          var position = self.shufflePathPoint(m.path, p, self.pathOutput);
+          block.x = position.x; block.y = position.y;
+          block.scale.setTo(block.backedScale * (1 + (m.scalePeak - 1) * Math.sin(Math.PI * p)));
+        } else {
+          block.x = m.start.x + (m.target.x - m.start.x) * p;
+          block.y = m.start.y + (m.target.y - m.start.y) * p;
+        }
+        if (m.velocityPose) {
+          var vx = (block.x - (m.previousX === undefined ? m.start.x : m.previousX)) / Math.max(dt, 0.001);
+          var vy = (block.y - (m.previousY === undefined ? m.start.y : m.previousY)) / Math.max(dt, 0.001);
+          var factor = self.PITCH / Math.max(self.PITCH * 6, Math.hypot(vx, vy));
+          block.pose(vx * factor, vy * factor);
+          m.previousX = block.x; m.previousY = block.y;
+        } else block.pose(block.x - m.target.x, block.y - m.target.y);
         return;
       }
-      var samples = [];
+      var sumX = 0, sumY = 0, poseX = 0, poseY = 0, count = 0;
       if (block.spring) {
         var spring = block.spring;
-        spring.vx += (-400 * spring.x - 13 * spring.vx) * dt;
-        spring.vy += (-400 * spring.y - 13 * spring.vy) * dt;
-        spring.x += spring.vx * dt; spring.y += spring.vy * dt;
+        var steps = Math.max(1, Math.ceil(dt / (1 / 120))), step = dt / steps;
+        for (var k = 0; k < steps; k++) {
+          spring.vx += (-400 * spring.x - 13 * spring.vx) * step;
+          spring.vy += (-400 * spring.y - 13 * spring.vy) * step;
+          spring.x += spring.vx * step; spring.y += spring.vy * step;
+        }
         var limit = self.BLOCK_SIZE * 0.5;
         spring.x = Math.max(-limit, Math.min(limit, spring.x));
         spring.y = Math.max(-limit, Math.min(limit, spring.y));
         if (Math.hypot(spring.x, spring.y) < 0.2 && Math.hypot(spring.vx, spring.vy) < 2) {
           block.spring = null; spring.x = 0; spring.y = 0;
         }
-        samples.push({ x: spring.x, y: spring.y, poseX: spring.x * 2.47, poseY: spring.y * 2.47 });
+        sumX += spring.x; sumY += spring.y; poseX += spring.x * 2.47; poseY += spring.y * 2.47; count++;
       }
       if (block.shake) {
         var shakeX = Math.sin(self.time.now * 0.09) * self.BLOCK_SIZE * 0.035;
         var shakeY = Math.cos(self.time.now * 0.11) * self.BLOCK_SIZE * 0.025;
-        samples.push({ x: shakeX, y: shakeY, poseX: shakeX * 1.33, poseY: shakeY * 1.33 });
+        sumX += shakeX; sumY += shakeY; poseX += shakeX * 1.33; poseY += shakeY * 1.33; count++;
       }
       if (block.tapRing) {
         var tap = block.tapRing, elapsed = (performance.now() - tap.start) / 1000;
         var tilt = Math.cos(elapsed * 48) * Math.exp(-elapsed * 6) * self.PITCH * 1.12;
         if (elapsed >= 0.65) { block.tapRing = null; tilt = 0; }
-        samples.push({ x: 0, y: 0, poseX: tap.x * tilt, poseY: tap.y * tilt });
+        poseX += tap.x * tilt; poseY += tap.y * tilt; count++;
       }
       if (self.hintCurrent && self.hintCurrent.block === block) {
         var hint = self.hintCurrent;
         var t = (performance.now() - hint.start) / 1000;
         var ring = Math.sin(t * 24) * Math.exp(-t * 2.5) * 0.3;
-        samples.push({ x: ring * self.BLOCK_SIZE * 0.045 * hint.x,
-          y: ring * self.BLOCK_SIZE * 0.045 * hint.y,
-          poseX: ring * self.PITCH * 0.65 * hint.x, poseY: ring * self.PITCH * 0.65 * hint.y });
+        sumX += ring * self.BLOCK_SIZE * 0.045 * hint.x; sumY += ring * self.BLOCK_SIZE * 0.045 * hint.y;
+        poseX += ring * self.PITCH * 0.65 * hint.x; poseY += ring * self.PITCH * 0.65 * hint.y; count++;
       }
-      if (samples.length) {
-        // Blend continuous offsets first, then choose a single atlas frame.
-        var combined = { x: 0, y: 0, poseX: 0, poseY: 0 };
-        samples.forEach(function(sample) {
-          combined.x += sample.x; combined.y += sample.y;
-          combined.poseX += sample.poseX; combined.poseY += sample.poseY;
-        });
-        block.x = block.origin.x + combined.x / samples.length;
-        block.y = block.origin.y + combined.y / samples.length;
-        block.pose(combined.poseX / samples.length, combined.poseY / samples.length);
+      if (count) {
+        block.x = block.origin.x + sumX / count; block.y = block.origin.y + sumY / count;
+        block.pose(poseX / count, poseY / count);
       }
     });
   },
   shutdown: function() {
     this.running = false;
+    this.particles.destroy();
+    window.removeEventListener('resize', this.layoutHandler);
+    window.removeEventListener('scroll', this.layoutHandler);
+    this.scale.onSizeChange.remove(this.layoutHandler);
+    if (this.counterText) this.counterText.remove();
+    if (this.shuffleButton) { this.shuffleButton.removeEventListener('click', this.shuffleClick); this.shuffleButton.remove(); }
     this.canvas.removeEventListener('pointerdown', this.handlers.down);
     window.removeEventListener('pointermove', this.handlers.move);
     window.removeEventListener('pointerup', this.handlers.up);
