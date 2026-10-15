@@ -1,445 +1,466 @@
 var Match3 = Match3 || {};
-
 Match3.GameState = {
-
   init: function() {
     this.NUM_ROWS = 6;
     this.NUM_COLS = 6;
-    this.SCREEN_OFFSET = 0.2;
     this.NUM_VARIATIONS = 5;
-    this.UI_OFFSET = 100;
-    this.HINT_TIME = 4;
-    this.SCREEN = this.game.world;
-
-    if( (this.SCREEN.width - this.SCREEN.height) < 0)
-    {
-      this.BLOCK_SIZE = (this.SCREEN.width - this.SCREEN.width * this.SCREEN_OFFSET) / this.NUM_ROWS;
-    }else{
-      this.BLOCK_SIZE = (this.SCREEN.height - this.SCREEN.height * this.SCREEN_OFFSET) / this.NUM_ROWS;
-    }
-
-    this.ANIMATION_TIME = 200;
-
+    this.GAP = 8;
+    this.BLOCK_SIZE = Math.max(12, (Math.min(this.game.width, this.game.height) * 0.8 - this.GAP * 5) / 6);
+    this.PITCH = this.BLOCK_SIZE + this.GAP;
+    this.uiBlocked = false;
+    this.gesture = null;
+    this.pendingDrops = [];
+    this.running = true;
+    this.hintQueue = null;
+    this.hintCurrent = null;
+    this.hintDeadline = performance.now() + 10000;
   },
   create: function() {
-    //game background
-    this.background = this.add.sprite(this.game.world.centerX, this.game.world.centerY, 'background');
-    this.background.anchor.setTo(.5);
-    var bgSize = (this.game.world.width/this.game.world.height) > (this.background.width / this.background.height) ? this.game.world.width / this.background.width : this.game.world.height / this.background.height;
-    this.background.scale.setTo(bgSize);
-
-
-    //board model
-    this.board = new Match3.Board(this, this.NUM_ROWS, this.NUM_COLS, this.NUM_VARIATIONS);
-    this.board.consoleLog();
-
+    var background = this.add.sprite(this.game.world.centerX, this.game.world.centerY, 'background');
+    background.anchor.setTo(0.5);
+    background.scale.setTo(Math.max(this.game.width / background.width, this.game.height / background.height));
     this.blocks = this.add.group();
-
-    this.drawBoard();
-
-    this.hintTimer = this.game.time.create(false);
-    this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
-    this.hintTimer.start();
-    this.sfx = {};
-    this.sfx.wobble = this.game.add.audio('wobble');
-    this.sfx.pops = [this.game.add.audio('pop1'),
-                    this.game.add.audio('pop2'),
-                    this.game.add.audio('pop3'),
-                    this.game.add.audio('pop4'),
-                    this.game.add.audio('pop5')];
-
+    this.board = new Match3.Board(this, 6, 6, 5);
+    this.sfx = { wobble: this.add.audio('wobble'), pops: [] };
+    for (var i = 1; i <= 5; i++) this.sfx.pops.push(this.add.audio('pop' + i));
     this.popCounter = 0;
-
-  },
-
-  drawBoard(){
-    var square, x, y, data;
-
-    for(var i = 0; i < this.NUM_ROWS; i++)
-    {
-      for(var j = 0; j < this.NUM_COLS; j++)
-      {
-        let {x, y} = this.getBlockPositionRowCol({row: i, col: j});
-        // x = this.game.world.centerX - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (j + .5) * (this.BLOCK_SIZE + 8);
-        // y = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (i + .5) * (this.BLOCK_SIZE + 8);
-        square = this.add.sprite(x, y, 'cell');
-        square.anchor.setTo(.5);
-        square.scale.setTo( (this.BLOCK_SIZE + 8 ) / square.width);
-        square.alpha = .2;
-        this.createBlock(x, y, {asset: 'block' + this.board.grid[i][j], row: i, col: j});
-      }
+    for (var row = 0; row < 6; row++) for (var col = 0; col < 6; col++) {
+      var pos = this.getBlockPositionRowCol({ row: row, col: col });
+      var cell = this.add.sprite(pos.x, pos.y, 'cell');
+      cell.anchor.setTo(0.5);
+      cell.scale.setTo(this.BLOCK_SIZE / cell.width);
+      cell.alpha = 0.2;
+      this.createBlock(pos.x, pos.y, { row: row, col: col, asset: 'block' + this.board.grid[row][col] });
     }
     this.game.world.bringToTop(this.blocks);
+    // One invisible DOM hit surface: the canvas. Individual sprites never receive input.
+    this.canvas = this.game.canvas;
+    this.oldTouchAction = this.canvas.style.touchAction;
+    this.canvas.style.touchAction = 'none';
+    this.handlers = {
+      down: this.pointerDown.bind(this), move: this.pointerMove.bind(this),
+      up: this.pointerUp.bind(this), cancel: this.pointerCancel.bind(this),
+      blur: this.cancelGesture.bind(this)
+    };
+    this.canvas.addEventListener('pointerdown', this.handlers.down);
+    window.addEventListener('pointermove', this.handlers.move);
+    window.addEventListener('pointerup', this.handlers.up);
+    window.addEventListener('pointercancel', this.handlers.cancel);
+    this.canvas.addEventListener('lostpointercapture', this.handlers.cancel);
+    window.addEventListener('blur', this.handlers.blur);
   },
-
-  getBlockPositionRowCol(pos){
-    let {row,col} = pos;
-    let center = {x: this.game.world.centerX, y: this.game.world.centerY};
-    let x = center.x - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (col + .5) * (this.BLOCK_SIZE + 8);
-    let y = center.y - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (row + .5) * (this.BLOCK_SIZE + 8);
-    
-    return {x: x, y: y};
+  getBlockPositionRowCol: function(pos) {
+    return { x: this.game.world.centerX + (pos.col - 2.5) * this.PITCH,
+      y: this.game.world.centerY + (pos.row - 2.5) * this.PITCH };
   },
-
-  createBlock(x, y, data){
+  createBlock: function(x, y, data) {
     var block = this.blocks.getFirstExists(false);
-    if(!block)
-    {
-      block = new Match3.Block(this, x, y, data);
-      this.blocks.add(block);
-    }else{
-      block.reset(x, y, data);
-    }
+    if (block) block.reset(x, y, data);
+    else { block = new Match3.Block(this, x, y, data); this.blocks.add(block); }
     return block;
   },
-
-  getBlockFromColRow(position){
-    var foundBlock;
-    let {row, col} = position;
-
-    this.blocks.forEachAlive((block) => {
-      if(block.row === row && block.col === col)
-      {
-        foundBlock = block;
-      }
-    }, this);
-
-    return foundBlock;
+  getBlockFromColRow: function(pos) {
+    return this.blocks.children.find(function(b) { return b.alive && b.row === pos.row && b.col === pos.col; });
   },
-
-  dropReserveBlock(sourceRow, targetRow, col) {
-    var del = (col + sourceRow / this.NUM_ROWS) * 100;
-    var x = this.game.world.centerX - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (this.BLOCK_SIZE + 8) * (col + .5);
-    var y = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 - (this.BLOCK_SIZE + 8) * this.board.RESERVE_ROW + (this.BLOCK_SIZE + 8) * (sourceRow + .5);
-    var data = {asset: 'block' + this.board.grid[targetRow][col], row: sourceRow, col: col};
-
-    var block = this.createBlock(x, y, data);
-    var targetPos = this.getBlockPositionRowCol({row: targetRow, col: col});
-
-    block.row = targetRow;
-    block.origin.x = targetPos.x;
-    block.origin.y = targetPos.y;
-    block.alpha = 0;
-
-    var blockMovement = this.game.add.tween(block);
-    var blockScale = this.game.add.tween(block.scale);
-    var rescaleBlock = block.backedScale;
-    blockMovement.to({ y: targetPos.y + 5 * targetRow, alpha: 1}, this.ANIMATION_TIME)
-    .to({ y: targetPos.y, alpha: 1}, 100)
-    .delay(this.ANIMATION_TIME * 3 + del)
-    .onComplete.add(() => {
-      block.play('bottom');
-    }, this);
-
-    blockScale.to({ x: rescaleBlock * .9, y: rescaleBlock * 1.2}, this.ANIMATION_TIME/1.5)
-    .to({ x: rescaleBlock * 1.2, y: rescaleBlock * .8}, this.ANIMATION_TIME/2)
-    .to({ x: rescaleBlock * .95, y: rescaleBlock * 1.1}, this.ANIMATION_TIME/3)
-    .to({ x: rescaleBlock, y: rescaleBlock}, this.ANIMATION_TIME/4)
-    .delay(this.ANIMATION_TIME * 3 + del);
-
-    blockMovement.start();
-    blockScale.start();
+  pointerPosition: function(event) {
+    var rect = this.canvas.getBoundingClientRect();
+    return { x: (event.clientX - rect.left) * this.game.width / rect.width,
+      y: (event.clientY - rect.top) * this.game.height / rect.height };
   },
-
-  dropBlock(sourceRow, targetRow, col) {
-    var del = (col + sourceRow / this.NUM_ROWS) * 100;
-    var block = this.getBlockFromColRow({row: sourceRow, col: col});
-    var targetY = this.game.world.centerY - (this.BLOCK_SIZE + 8) * this.NUM_COLS / 2 + (targetRow + .5) * (this.BLOCK_SIZE + 8);
-    block.row = targetRow;
-    block.origin.y = targetY;
-    var blockMovement = this.game.add.tween(block);
-    var blockScale = this.game.add.tween(block.scale);
-    var rescaleBlock = block.backedScale;
-    blockMovement.to({ y: targetY + 5 * targetRow}, this.ANIMATION_TIME)
-    .to({ y: targetY}, 100)
-    .delay(this.ANIMATION_TIME * 3 + del)
-    .onComplete.add(() => {
-      block.play('bottom');
-    }, this);
-
-    blockScale.to({ x: rescaleBlock * .9, y: rescaleBlock * 1.2}, this.ANIMATION_TIME/1.5)
-    .to({ x: rescaleBlock * 1.2, y: rescaleBlock * .8}, this.ANIMATION_TIME/2)
-    .to({ x: rescaleBlock * .95, y: rescaleBlock * 1.1}, this.ANIMATION_TIME/3)
-    .to({ x: rescaleBlock, y: rescaleBlock}, this.ANIMATION_TIME/4)
-    .delay(this.ANIMATION_TIME * 3 + del);
-
-    blockMovement.start();
-    blockScale.start();
+  hitCell: function(pos) {
+    var first = this.getBlockPositionRowCol({ row: 0, col: 0 });
+    var x = pos.x - first.x + this.BLOCK_SIZE / 2;
+    var y = pos.y - first.y + this.BLOCK_SIZE / 2;
+    var col = Math.floor(x / this.PITCH), row = Math.floor(y / this.PITCH);
+    if (col < 0 || col >= 6 || row < 0 || row >= 6 ||
+      x - col * this.PITCH >= this.BLOCK_SIZE || y - row * this.PITCH >= this.BLOCK_SIZE) return null;
+    return { row: row, col: col };
   },
-
-  popSound(){
-    this.sfx.pops[this.popCounter].play();
-    this.popCounter = (this.popCounter + 1) % this.sfx.pops.length;
+  pointerDown: function(event) {
+    this.resetHints();
+    if (this.uiBlocked || this.gesture || (event.button !== undefined && event.button !== 0)) return;
+    var cell = this.hitCell(this.pointerPosition(event));
+    if (!cell) return;
+    var block = this.getBlockFromColRow(cell);
+    if (!block) return;
+    event.preventDefault();
+    this.stopMotion(block);
+    block.x = block.origin.x; block.y = block.origin.y;
+    this.blocks.bringToTop(block);
+    this.scaleSelection(block, 1.12);
+    var pointer = this.pointerPosition(event);
+    this.gesture = { id: event.pointerId, block: block, neighbor: null,
+      down: pointer, downTime: performance.now(), maxTravel: 0,
+      previous: pointer, previousTime: performance.now(), vx: 0, vy: 0 };
+    block.pose(0, 0);
+    this.canvas.setPointerCapture(event.pointerId);
+    this.pointerMove(event);
   },
-  
-  swapBlocks(block1, block2){
-    //play wobble sound
-    this.sfx.wobble.play();
-
-    var rescaleBlock = block1.backedScale;
-    this.hintTimer.removeAll();
-
-    var tmpOrigin = block1.origin;
-    block1.origin = block2.origin;
-    block2.origin = tmpOrigin;
-
-    var blockScaleBack = this.game.add.tween(block1.scale);
-    blockScaleBack.to({x: rescaleBlock * .75, y: rescaleBlock * .7}, 50)
-    .to({x: rescaleBlock * 1.02, y: rescaleBlock * 1.07}, 50)
-    .to({x: rescaleBlock, y: rescaleBlock}, 50);
-    blockScaleBack.start();
-
-    var block1Move = this.game.add.tween(block1);
-    block1Move.to({x: block1.origin.x, y: block1.origin.y}, this.ANIMATION_TIME)
-    .onComplete.add(() => {
-
-      if(block1.x == block2.x){
-        if(block1.y - block2.y > 0 ){
-          block1.play('top');
-          block2.play('bottom');
-        }else{
-          block1.play('bottom');
-          block2.play('top');
-        }
-      }else if(block1.y == block2.y){
-        if(block1.x - block2.x > 0 ){
-          block1.play('left');
-          block2.play('right');
-        }else{
-          block1.play('right');
-          block2.play('left');
-        }
-      }
-
-
-    this.board.swap(block1, block2);
-    
-    if(!this.isReversingSwap)
-      {
-        var chains = this.board.findAllChains();
-        if(chains.length > 0){
-          this.updateBoard();
-          
-        }else{
-          this.isReversingSwap = true;
-          this.swapBlocks(block1, block2);
-        }
-
-      }else{
-        this.isReversingSwap = false;
-        this.updateBoard();
-      }
-      
-    }, this);
-    block1Move.start();
-
-    var block2Move = this.game.add.tween(block2);
-    block2Move.to({x: block2.origin.x, y: block2.origin.y}, this.ANIMATION_TIME)
-    .onComplete.add(() => {
-    }, this);
-    block2Move.start();
-  },
-
-  checkAdjacent(source, target) {
-    var diffRow = Math.abs(source.row - target.row);
-    var diffCol = Math.abs(source.col - target.col);
-
-    var isAdjacent = (diffRow === 1 && !diffCol) || (!diffRow && diffCol === 1);
-
-    return isAdjacent;
-  },
-
-  dragSwapBlock(block) {
-    let {x: oriX, y: oriY} = block.origin;
-    let {x, y} = this.game.input.position;
-
-    if( Math.abs(oriX - x) >  Math.abs(oriY - y) ){
-      block.input.allowHorizontalDrag = true;
-      block.input.allowVerticalDrag = false;
-      let swapAxisTween = this.game.add.tween(block);
-      swapAxisTween.to({y: oriY}, 50);
-      swapAxisTween.start();
-      // block.y = block.origin.y;
-
-      if( Math.abs(oriX - x) > this.BLOCK_SIZE + 6 ){
-        block.input.disableDrag();
-        this.relBlock(block);
-      }
-    }else{
-      block.input.allowHorizontalDrag = false;
-      block.input.allowVerticalDrag = true;
-      let swapAxisTween = this.game.add.tween(block);
-      swapAxisTween.to({x: oriX}, 50);
-      swapAxisTween.start();
-      // block.x = block.origin.x;
-
-      if( Math.abs(oriY - y) > this.BLOCK_SIZE + 6 ){
-        block.input.disableDrag();
-        this.relBlock(block);
-      }
+  pointerMove: function(event) {
+    var g = this.gesture;
+    if (!g || g.id !== event.pointerId) return;
+    var pos = this.pointerPosition(event), block = g.block;
+    var now = performance.now();
+    g.maxTravel = Math.max(g.maxTravel, Math.hypot(pos.x - g.down.x, pos.y - g.down.y));
+    var seconds = Math.max((now - g.previousTime) / 1000, 0.008);
+    var blend = 1 - Math.exp(-seconds / 0.035);
+    g.vx += ((pos.x - g.previous.x) / seconds - g.vx) * blend;
+    g.vy += ((pos.y - g.previous.y) / seconds - g.vy) * blend;
+    g.previous = pos;
+    g.previousTime = now;
+    var dx = pos.x - block.origin.x, dy = pos.y - block.origin.y;
+    var horizontal = Math.abs(dx) >= Math.abs(dy);
+    var amount = horizontal ? dx : dy;
+    var sign = amount < 0 ? -1 : 1;
+    var threshold = this.PITCH * 0.10;
+    var candidate = this.getBlockFromColRow({
+      row: block.row + (horizontal ? 0 : sign), col: block.col + (horizontal ? sign : 0)
+    });
+    var neighbor = Math.abs(amount) > threshold ? candidate : null;
+    if (neighbor !== g.neighbor) {
+      if (g.neighbor) this.land(g.neighbor, g.neighbor.origin, 120);
+      g.neighbor = neighbor;
+      if (neighbor) this.stopMotion(neighbor);
     }
+    var displacement = candidate ? Math.max(-this.PITCH, Math.min(this.PITCH, amount)) : 0;
+    var x = horizontal ? displacement : 0, y = horizontal ? 0 : displacement;
+    block.x = block.origin.x + x; block.y = block.origin.y + y;
+    var cursorDistance = Math.hypot(dx, dy);
+    g.farDrag = neighbor && cursorDistance > this.PITCH * 1.5 ? {
+      x: dx / cursorDistance, y: dy / cursorDistance
+    } : null;
+    g.neighborResponse = Math.max(0, Math.min(1, (Math.abs(displacement) - threshold) / (this.PITCH - threshold)));
+    this.poseGesture(g);
+    if (neighbor) {
+      var mirror = sign * this.PITCH * g.neighborResponse;
+      neighbor.x = neighbor.origin.x - (horizontal ? mirror : 0);
+      neighbor.y = neighbor.origin.y - (horizontal ? 0 : mirror);
+      // The same pointer velocity, mirrored for the neighboring object.
+      this.poseGesture(g);
+    }
+    this.blocks.bringToTop(block);
   },
-
-  pickBlock(block, event){
-
-    if(this.uiBlocked)
-    {
+  poseGesture: function(g) {
+    // Six cell pitches per second reaches the outer atlas angle.
+    var speedForFullTilt = this.PITCH * 6;
+    var speed = Math.hypot(g.vx, g.vy);
+    var factor = this.PITCH / Math.max(speedForFullTilt, speed);
+    var x = g.vx * factor, y = g.vy * factor;
+    if (g.farDrag) {
+      var extraDistance = this.PITCH * 0.25 * Math.min(1, speed / speedForFullTilt);
+      g.block.x = g.neighbor.origin.x + g.farDrag.x * extraDistance;
+      g.block.y = g.neighbor.origin.y + g.farDrag.y * extraDistance;
+      var atlasExtent = this.PITCH / Math.max(Math.abs(g.farDrag.x), Math.abs(g.farDrag.y));
+      g.block.pose(g.farDrag.x * atlasExtent, g.farDrag.y * atlasExtent);
+    } else g.block.pose(x, y);
+    if (g.neighbor) g.neighbor.pose(-x * g.neighborResponse, -y * g.neighborResponse);
+  },
+  pointerUp: function(event) {
+    if (!this.gesture || this.gesture.id !== event.pointerId) return;
+    this.pointerMove(event);
+    this.finishGesture(false);
+  },
+  pointerCancel: function(event) {
+    if (this.gesture && this.gesture.id === event.pointerId) this.finishGesture(true);
+  },
+  cancelGesture: function() { if (this.gesture) this.finishGesture(true); },
+  finishGesture: async function(cancelled) {
+    var g = this.gesture;
+    this.gesture = null;
+    this.uiBlocked = true;
+    if (this.canvas.hasPointerCapture(g.id)) this.canvas.releasePointerCapture(g.id);
+    var block = g.block, neighbor = g.neighbor;
+    this.scaleSelection(block, 1);
+    if (!cancelled && g.maxTravel <= 6 && performance.now() - g.downTime <= 500) {
+      this.stopMotion(block);
+      block.x = block.origin.x; block.y = block.origin.y;
+      if (neighbor) {
+        this.stopMotion(neighbor);
+        neighbor.x = neighbor.origin.x; neighbor.y = neighbor.origin.y; neighbor.pose(0, 0);
+      }
+      var dx = g.down.x - block.origin.x, dy = g.down.y - block.origin.y;
+      var length = Math.hypot(dx, dy);
+      if (length < 2) { var angle = Math.random() * Math.PI * 2; dx = Math.cos(angle); dy = Math.sin(angle); length = 1; }
+      block.tapRing = { start: performance.now(), x: dx / length, y: dy / length };
+      this.uiBlocked = false;
       return;
     }
-
-    if(!this.selectedBlock)
-    {
-      block.input.draggable = true;
-      block.origin = block.input.dragStartPoint.setTo(block.x, block.y);
-      block.input.enableSnap(this.BLOCK_SIZE + 8, this.BLOCK_SIZE + 8, false, true, block.input.dragStartPoint.x, block.input.dragStartPoint.y);
-      block.input.bringToTop = true;
-
-      block.events.onDragStart.add(this.dragSwapBlock, this);
-      block.events.onDragStop.add(this.relBlock, this);
-
-      var blockScaleUp = this.game.add.tween(block.scale);
-
-      block.downPosition = event.position;
-
-      // block.events.onInputUp.add(this.slideBlock, this);
-
-      var rescaleBlock = block.backedScale;
-
-      blockScaleUp.to({x: rescaleBlock * 1.65, y: rescaleBlock * 1.5}, 100)
-      .to({x: rescaleBlock * 1.3, y: rescaleBlock * 1.3}, 100);
-      blockScaleUp.start();
-
-      this.selectedBlock = block;
-    }else{
-      this.targetBlock = block;
-
-      if( this.board.checkAdjacent(this.selectedBlock, this.targetBlock) )
-      {
-        //block the UI
-        this.uiBlocked = true;
-
-        //swap the blocks
-        this.swapBlocks(this.selectedBlock, this.targetBlock);
-
-      }else{
-        this.clearSelection();
-      }
+    var distance = Math.hypot(block.x - block.origin.x, block.y - block.origin.y);
+    var valid = false;
+    var swapVector = neighbor ? { x: neighbor.origin.x - block.origin.x, y: neighbor.origin.y - block.origin.y } : null;
+    // Commit only a deliberate drag; keep the existing match detector and board rules.
+    if (!cancelled && neighbor && distance >= this.PITCH * 0.25) {
+      this.board.swap(block, neighbor);
+      valid = this.board.findAllChains().length > 0;
+      if (valid) {
+        var oldOrigin = block.origin; block.origin = neighbor.origin; neighbor.origin = oldOrigin;
+        this.sfx.wobble.play();
+      } else this.board.swap(block, neighbor);
     }
+    await Promise.all([
+      this.land(block, block.origin, 170, 0, false, valid ? swapVector : null),
+      neighbor ? this.land(neighbor, neighbor.origin, 170, 0, false, valid ? { x: -swapVector.x, y: -swapVector.y } : null) : Promise.resolve()
+    ]);
+    if (!this.running) return;
+    if (valid) await this.resolveBoard(block);
+    else this.uiBlocked = false;
   },
-
-  getDirection(block){
-    let {x: oriX, y: oriY} = block.origin;
-    let {x, y} = block;
-    var thld = 5;
-    let lenX = Math.abs(oriX - x);
-    let lenY = Math.abs(oriY - y);
-    var outX = (lenX > thld && lenX > lenY) ? (oriX - x) / Math.abs((oriX - x)) : 0;
-    var outY = (lenY > thld && lenY > lenX) ? (oriY - y) / Math.abs((oriY - y)) : 0;
-
-    return {x: outX, y: outY};
+  scaleSelection: function(block, factor) {
+    if (block.selectionTween) block.selectionTween.stop();
+    block.selectionTween = this.add.tween(block.scale).to({
+      x: block.backedScale * factor, y: block.backedScale * factor
+    }, 100, Phaser.Easing.Quadratic.Out, true);
   },
-
-  relBlock(block) {
-    var swipeRate = this.getDirection(block);
-
-    var nearestBlocks = this.blocks.children.filter((item) => {
-      return this.checkAdjacent(item, block);
-    }, this);
-
-    var targetBlock = this.getBlockFromColRow({row: block.row - swipeRate.y, col: block.col - swipeRate.x});
-
-    if(targetBlock){
-      this.swapBlocks(block, targetBlock);
-      this.uiBlocked = true;
-      this.clearSelection();
-    }else{
-      nearestBlocks.forEach( item => {
-        var backTween = this.game.add.tween(item);
-        backTween.to({x: item.origin.x, y: item.origin.y}, 100);
-        backTween.start();
-      }, this);
-
-      var backTweenBlock = this.game.add.tween(block);
-      backTweenBlock.to({x: block.origin.x, y: block.origin.y}, 100);
-      backTweenBlock.start();
-      // this.clearSelection();
-    }
+  stopMotion: function(block) {
+    block.tapRing = null;
+    if (block.motion) { block.motion.tween.stop(); block.motion.resolve(); block.motion = null; }
+    block.spring = null;
   },
-
-  clearSelection(){
-    this.uiBlocked = false;
-    if(this.selectedBlock){
-      var blockScaleBack = this.game.add.tween(this.selectedBlock.scale);
-      var rescaleBlock = this.selectedBlock.backedScale;
-      blockScaleBack.to({x: rescaleBlock * 1.04, y: rescaleBlock * 1.06}, 50)
-      .to({x: rescaleBlock, y: rescaleBlock}, 50);
-      blockScaleBack.start();
-    }
-    // this.blocks.forEach(item => {
-    //   let backTween = this.game.add.tween(item);
-    //   backTween.to({x: item.origin.x, y: item.origin.y}, 100);
-    //   backTween.start();
-    // }, this);
-
-    this.selectedBlock = null;
-    this.targetBlock = null;
-
-    // this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
+  land: function(block, target, duration, delay, falling, momentum) {
+    this.stopMotion(block);
+    var self = this, start = { x: block.x, y: block.y };
+    var dx = target.x - start.x, dy = target.y - start.y;
+    block.origin = { x: target.x, y: target.y };
+    return new Promise(function(resolve) {
+      var progress = { value: 0 };
+      var tween = self.add.tween(progress).to({ value: 1 }, duration, Phaser.Easing.Quadratic.InOut, false, delay || 0);
+      block.motion = { tween: tween, resolve: resolve, progress: progress, start: start, target: block.origin };
+      tween.onComplete.addOnce(function() {
+        block.motion = null;
+        block.x = target.x; block.y = target.y;
+        var inertiaX = momentum ? momentum.x : dx;
+        var inertiaY = momentum ? momentum.y : dy;
+        var distance = Math.hypot(inertiaX, inertiaY);
+        if (distance > 0.5) {
+          // Velocity produces an overshoot bounded to half a cell, followed by damped oscillation.
+          var amplitude = Math.min(self.BLOCK_SIZE * (falling ? 0.22 : 0.45), Math.max(self.BLOCK_SIZE * 0.035, distance * 0.2));
+          block.spring = { x: 0, y: 0, vx: inertiaX / distance * amplitude * 22, vy: inertiaY / distance * amplitude * 22 };
+        } else block.pose(0, 0);
+        resolve();
+      });
+      tween.start();
+    });
   },
-
-  hintBlocks(){
-    var hintsList = this.board.findAllHints();
-    var randomHint = hintsList[Math.floor(Math.random() * hintsList.length)];
-    this.getBlockFromColRow(randomHint).play(randomHint.chainedTo);
-
-    // this.hintTimer.add(Phaser.Timer.SECOND * this.HINT_TIME, () => this.hintBlocks(), this);
+  wait: function(ms) {
+    var self = this;
+    return new Promise(function(resolve) { self.time.events.add(ms, resolve); });
   },
-
-  updateBoard(){
-    this.board.clearChains();
-    this.board.updateGrid();
-
-    //after the drop ended
-    this.game.time.events.add(this.ANIMATION_TIME * 4, () => {
+  explode: async function(block, delay, ready) {
+    await this.wait(delay);
+    var home = { x: block.origin.x, y: block.origin.y };
+    block.shake = true;
+    await this.wait(100);
+    block.shake = null;
+    block.row = null; block.col = null;
+    ready();
+    this.sfx.pops[this.popCounter++ % this.sfx.pops.length].play();
+    var emitter = this.add.emitter(home.x, home.y, 10);
+    emitter.makeParticles('cloud');
+    emitter.minParticleSpeed.setTo(-210, -210); emitter.maxParticleSpeed.setTo(210, 210);
+    emitter.gravity = 0; emitter.setAlpha(0.7, 0, 450); emitter.setScale(1.35, 0, 1.35, 0, 450);
+    emitter.start(true, 450, null, 10);
+    emitter.forEachAlive(function(particle) {
+      // Give each particle its own scale curve, retaining the shrink-to-zero animation.
+      var size = 0.35 + Math.random() * 1.65;
+      particle.setScaleData(emitter.scaleData.map(function(frame) {
+        return { x: frame.x * size, y: frame.y * size };
+      }));
+    });
+    this.time.events.add(500, function() { emitter.destroy(); });
+    var scale = this.add.tween(block.scale).to({ x: 0, y: 0 }, 120, Phaser.Easing.Back.In, true);
+    await new Promise(function(resolve) { scale.onComplete.addOnce(resolve); });
+    block.row = null; block.col = null;
+    Phaser.Sprite.prototype.kill.call(block);
+  },
+  resolveBoard: async function(interactionBlock) {
+    var impact = { row: interactionBlock.row, col: interactionBlock.col };
+    while (this.running) {
       var chains = this.board.findAllChains();
-
-      if(chains.length > 0){
-        this.updateBoard();
-      }else{
-        this.clearSelection();
-      }
-    }, this);
-  },
-
-  update(){
-    if(this.selectedBlock){
-      var block = this.selectedBlock;
-
-      if(this.selectedBlock.input.isDragged){
-        this.dragSwapBlock(this.selectedBlock);
-        var nearestBlocks = this.blocks.children.filter((item) => {
-          return this.checkAdjacent(item, block);
-        }, this);
-
-        nearestBlocks.forEach((item) => {
-          var backTween = this.game.add.tween(item);
-          var thld = 5;
-          backTween.to({x: item.origin.x, y: item.origin.y}, 20);
-
-          if( (Math.abs(item.origin.x - block.x) - Math.abs(item.origin.x - block.origin.x)) < -thld )
-            {
-              item.x -= block.deltaX * .9;
-            }else if( (Math.abs(item.origin.y - block.y) - Math.abs(item.origin.y - block.origin.y)) < -thld )
-            {
-              item.y -= block.deltaY * .9;
-            }else{
-              backTween.start();
-            }
-        }, this);
-
-      }
+      if (!chains.length) { this.uiBlocked = false; return; }
+      var self = this;
+      chains.sort(function(a, b) {
+        var aa = a.row === interactionBlock.row && a.col === interactionBlock.col;
+        var bb = b.row === interactionBlock.row && b.col === interactionBlock.col;
+        if (aa !== bb) return aa ? -1 : 1;
+        return Math.hypot(a.row - impact.row, a.col - impact.col) - Math.hypot(b.row - impact.row, b.col - impact.col);
+      });
+      var vacancies = [];
+      var explosions = chains.map(function(cell, index) {
+        self.board.grid[cell.row][cell.col] = 0;
+        var block = self.getBlockFromColRow(cell);
+        var delay = index === 0 ? 0 : Math.hypot(cell.row - impact.row, cell.col - impact.col) * 35;
+        var ready;
+        vacancies.push(new Promise(function(resolve) { ready = resolve; }));
+        return self.explode(block, delay, ready);
+      });
+      await Promise.all(vacancies);
+      this.pendingDrops = [];
+      this.board.updateGrid();
+      await Promise.all(this.pendingDrops.concat(explosions));
+      // All logical landings complete; springs may continue while the next cascade is checked.
     }
-    
+  },
+  dropDelay: function(targetRow, col) {
+    // Bottom destination cells fill first; each higher destination adds 25 ms.
+    return (this.NUM_ROWS - 1 - targetRow) * 25 + col * 18;
+  },
+  dropBlock: function(sourceRow, targetRow, col) {
+    var block = this.getBlockFromColRow({ row: sourceRow, col: col });
+    block.row = targetRow;
+    var target = this.getBlockPositionRowCol({ row: targetRow, col: col });
+    this.pendingDrops.push(this.land(block, target, 220 + (targetRow - sourceRow) * 35, this.dropDelay(targetRow, col), true));
+  },
+  dropReserveBlock: function(sourceRow, targetRow, col) {
+    var source = this.getBlockPositionRowCol({ row: sourceRow - this.NUM_ROWS, col: col });
+    var target = this.getBlockPositionRowCol({ row: targetRow, col: col });
+    var block = this.createBlock(source.x, source.y, { row: targetRow, col: col, asset: 'block' + this.board.grid[targetRow][col] });
+    this.pendingDrops.push(this.land(block, target, 220 + (targetRow + this.NUM_ROWS - sourceRow) * 35, this.dropDelay(targetRow, col), true));
+  },
+  resetHints: function() {
+    if (this.hintCurrent) {
+      var block = this.hintCurrent.block;
+      block.x = block.origin.x; block.y = block.origin.y; block.pose(0, 0);
+    }
+    this.hintCurrent = null;
+    this.hintQueue = null;
+    this.hintDeadline = performance.now() + 10000;
+  },
+  winningCells: function() {
+    var grid = this.board.grid, cells = {}, self = this;
+    for (var row = 0; row < this.NUM_ROWS; row++) for (var col = 0; col < this.NUM_COLS; col++) {
+      [[1, 0], [0, 1]].forEach(function(direction) {
+        var r = row + direction[0], c = col + direction[1];
+        if (r >= self.NUM_ROWS || c >= self.NUM_COLS) return;
+        var old = grid[row][col]; grid[row][col] = grid[r][c]; grid[r][c] = old;
+        var matches;
+        try { matches = self.board.findAllChains(); }
+        finally { grid[r][c] = grid[row][col]; grid[row][col] = old; }
+        matches.forEach(function(cell) {
+          // Match coordinates are after the swap; map them back to the current objects.
+          var original = cell;
+          if (cell.row === row && cell.col === col) original = { row: r, col: c };
+          else if (cell.row === r && cell.col === c) original = { row: row, col: col };
+          var key = original.row + ',' + original.col;
+          if (!cells[key]) cells[key] = { row: original.row, col: original.col, directions: [] };
+          var destination;
+          if (original.row === row && original.col === col) destination = { row: r, col: c };
+          else if (original.row === r && original.col === c) destination = { row: row, col: col };
+          else destination = Math.hypot(original.row - row, original.col - col) < Math.hypot(original.row - r, original.col - c) ? { row: row, col: col } : { row: r, col: c };
+          var dx = destination.col - original.col, dy = destination.row - original.row;
+          var length = Math.hypot(dx, dy) || 1;
+          cells[key].directions.push({ x: dx / length, y: dy / length });
+        });
+      });
+    }
+    var result = Object.keys(cells).map(function(key) { return cells[key]; });
+    for (var i = result.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var temp = result[i]; result[i] = result[j]; result[j] = temp;
+    }
+    return result;
+  },
+  updateHints: function() {
+    var now = performance.now();
+    if (this.uiBlocked || this.gesture) { this.resetHints(); return; }
+    if (this.hintCurrent) {
+      if (now - this.hintCurrent.start < 1300) return;
+      var block = this.hintCurrent.block;
+      block.x = block.origin.x; block.y = block.origin.y; block.pose(0, 0);
+      this.hintCurrent = null;
+      this.hintNext = now + 300;
+    }
+    if (!this.hintQueue) {
+      if (now < this.hintDeadline) return;
+      this.hintQueue = this.winningCells();
+      this.hintNext = now;
+    }
+    if (now < this.hintNext) return;
+    if (!this.hintQueue.length) { this.resetHints(); return; }
+    var cell = this.hintQueue.shift();
+    var candidate = this.getBlockFromColRow(cell);
+    if (candidate) {
+      var direction = cell.directions[Math.floor(Math.random() * cell.directions.length)];
+      var angle = Math.random() * Math.PI * 2;
+      var x = direction.x + Math.cos(angle) * 0.65;
+      var y = direction.y + Math.sin(angle) * 0.65;
+      var length = Math.hypot(x, y);
+      this.hintCurrent = { block: candidate, start: now, x: x / length, y: y / length };
+    }
+  },
+  update: function() {
+    var dt = Math.min(this.time.elapsedMS / 1000, 0.025), self = this;
+    this.updateHints();
+    if (this.gesture) {
+      var g = this.gesture;
+      // A stationary cursor stops emitting move events; relax back to the central frame.
+      if (performance.now() - g.previousTime > 40) {
+        var decay = Math.exp(-dt / 0.065);
+        g.vx *= decay; g.vy *= decay;
+      }
+      this.poseGesture(g);
+    }
+    this.blocks.forEachAlive(function(block) {
+      if (block.motion) {
+        var m = block.motion, p = m.progress.value;
+        block.x = m.start.x + (m.target.x - m.start.x) * p;
+        block.y = m.start.y + (m.target.y - m.start.y) * p;
+        block.pose(block.x - m.target.x, block.y - m.target.y);
+        return;
+      }
+      var samples = [];
+      if (block.spring) {
+        var spring = block.spring;
+        spring.vx += (-400 * spring.x - 13 * spring.vx) * dt;
+        spring.vy += (-400 * spring.y - 13 * spring.vy) * dt;
+        spring.x += spring.vx * dt; spring.y += spring.vy * dt;
+        var limit = self.BLOCK_SIZE * 0.5;
+        spring.x = Math.max(-limit, Math.min(limit, spring.x));
+        spring.y = Math.max(-limit, Math.min(limit, spring.y));
+        if (Math.hypot(spring.x, spring.y) < 0.2 && Math.hypot(spring.vx, spring.vy) < 2) {
+          block.spring = null; spring.x = 0; spring.y = 0;
+        }
+        samples.push({ x: spring.x, y: spring.y, poseX: spring.x * 2.47, poseY: spring.y * 2.47 });
+      }
+      if (block.shake) {
+        var shakeX = Math.sin(self.time.now * 0.09) * self.BLOCK_SIZE * 0.035;
+        var shakeY = Math.cos(self.time.now * 0.11) * self.BLOCK_SIZE * 0.025;
+        samples.push({ x: shakeX, y: shakeY, poseX: shakeX * 1.33, poseY: shakeY * 1.33 });
+      }
+      if (block.tapRing) {
+        var tap = block.tapRing, elapsed = (performance.now() - tap.start) / 1000;
+        var tilt = Math.cos(elapsed * 48) * Math.exp(-elapsed * 6) * self.PITCH * 1.12;
+        if (elapsed >= 0.65) { block.tapRing = null; tilt = 0; }
+        samples.push({ x: 0, y: 0, poseX: tap.x * tilt, poseY: tap.y * tilt });
+      }
+      if (self.hintCurrent && self.hintCurrent.block === block) {
+        var hint = self.hintCurrent;
+        var t = (performance.now() - hint.start) / 1000;
+        var ring = Math.sin(t * 24) * Math.exp(-t * 2.5) * 0.3;
+        samples.push({ x: ring * self.BLOCK_SIZE * 0.045 * hint.x,
+          y: ring * self.BLOCK_SIZE * 0.045 * hint.y,
+          poseX: ring * self.PITCH * 0.65 * hint.x, poseY: ring * self.PITCH * 0.65 * hint.y });
+      }
+      if (samples.length) {
+        // Blend continuous offsets first, then choose a single atlas frame.
+        var combined = { x: 0, y: 0, poseX: 0, poseY: 0 };
+        samples.forEach(function(sample) {
+          combined.x += sample.x; combined.y += sample.y;
+          combined.poseX += sample.poseX; combined.poseY += sample.poseY;
+        });
+        block.x = block.origin.x + combined.x / samples.length;
+        block.y = block.origin.y + combined.y / samples.length;
+        block.pose(combined.poseX / samples.length, combined.poseY / samples.length);
+      }
+    });
+  },
+  shutdown: function() {
+    this.running = false;
+    this.canvas.removeEventListener('pointerdown', this.handlers.down);
+    window.removeEventListener('pointermove', this.handlers.move);
+    window.removeEventListener('pointerup', this.handlers.up);
+    window.removeEventListener('pointercancel', this.handlers.cancel);
+    this.canvas.removeEventListener('lostpointercapture', this.handlers.cancel);
+    window.removeEventListener('blur', this.handlers.blur);
+    this.canvas.style.touchAction = this.oldTouchAction;
   }
-
 };
